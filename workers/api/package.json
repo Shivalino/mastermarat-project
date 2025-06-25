@@ -1,0 +1,30 @@
+{
+  "name": "mastermarat-api",
+  "version": "1.0.0",
+  "description": "MasterMarat API Worker for protected video delivery",
+  "main": "src/worker.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy --env production",
+    "deploy:staging": "wrangler deploy --env staging",
+    "test": "echo \"No tests yet\"",
+    "lint": "echo \"No linting yet\"",
+    "format": "echo \"No formatting yet\""
+  },
+  "keywords": [
+    "cloudflare",
+    "workers", 
+    "edtech",
+    "api",
+    "video-streaming",
+    "mastermarat"
+  ],
+  "author": "MasterMarat Team",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

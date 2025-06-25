@@ -1,0 +1,31 @@
+name = "mastermarat-api"
+main = "src/worker.js"
+compatibility_date = "2024-06-13"
+
+# Production environment
+[env.production]
+name = "mastermarat-api"
+routes = [
+  { pattern = "api.mastermarat.com/*", custom_domain = true }
+]
+
+# Staging environment  
+[env.staging]
+name = "mastermarat-api-staging"
+
+# R2 Storage bindings
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "mastermarat-videos"
+preview_bucket_name = "mastermarat-videos"
+
+# Environment variables
+[vars]
+ENVIRONMENT = "production"
+API_VERSION = "1.0.0"
+DEBUG = "false"
+
+# Staging variables
+[env.staging.vars]
+ENVIRONMENT = "staging"
+DEBUG = "true"
