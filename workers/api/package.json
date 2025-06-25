@@ -7,9 +7,17 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --env production",
     "deploy:staging": "wrangler deploy --env staging",
-    "test": "echo \"No tests yet\"",
-    "lint": "echo \"No linting yet\"",
-    "format": "echo \"No formatting yet\""
+    "preview": "wrangler dev --remote",
+    "test": "npm run test:api",
+    "test:api": "node ../../scripts/test-api.js",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write src/",
+    "format:check": "prettier --check src/",
+    "login": "wrangler login",
+    "whoami": "wrangler whoami",
+    "logs": "wrangler tail",
+    "logs:prod": "wrangler tail --env production"
   },
   "keywords": [
     "cloudflare",
@@ -17,14 +25,25 @@
     "edtech",
     "api",
     "video-streaming",
-    "mastermarat"
+    "mastermarat",
+    "r2-storage",
+    "osteopathy",
+    "health-education"
   ],
   "author": "MasterMarat Team",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Shivalino/mastermarat-project.git"
+  },
+  "homepage": "https://mastermarat.com",
   "devDependencies": {
-    "wrangler": "^3.0.0"
+    "wrangler": "^3.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }
