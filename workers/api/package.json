@@ -21,7 +21,7 @@
   },
   "keywords": [
     "cloudflare",
-    "workers", 
+    "workers",
     "edtech",
     "api",
     "video-streaming",
@@ -38,9 +38,9 @@
   },
   "homepage": "https://mastermarat.com",
   "devDependencies": {
-    "wrangler": "^3.0.0",
     "eslint": "^8.0.0",
-    "prettier": "^3.0.0"
+    "prettier": "^3.0.0",
+    "wrangler": "^4.22.0"
   },
   "engines": {
     "node": ">=18.0.0",
