@@ -1,0 +1,22 @@
+﻿{
+  "name": "mastermarat-project",
+  "version": "1.0.0",
+  "description": "MasterMarat EdTech Project",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix workers/api",
+    "deploy": "npm run deploy --prefix workers/api",
+    "lint": "npm run lint --prefix workers/api",
+    "lint:fix": "npm run lint:fix --prefix workers/api",
+    "format": "npm run format --prefix workers/api",
+    "format:check": "npm run format:check --prefix workers/api",
+    "install:all": "npm install && cd workers/api && npm install"
+  },
+  "workspaces": [
+    "workers/api"
+  ],
+  "devDependencies": {
+    "prettier": "^3.0.0",
+    "eslint": "^8.0.0"
+  }
+}
