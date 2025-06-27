@@ -1,5 +1,5 @@
 ﻿export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env, _ctx) {
     const url = new URL(request.url);
 
     // CORS headers РґР»СЏ РІСЃРµС… РѕС‚РІРµС‚РѕРІ
@@ -49,7 +49,7 @@
           headers: {
             'Content-Type': object.httpMetadata?.contentType || 'image/jpeg',
             'Cache-Control': 'public, max-age=86400',
-            'ETag': object.httpEtag,
+            ETag: object.httpEtag,
             ...corsHeaders
           }
         });
@@ -115,7 +115,7 @@
       try {
         // РЎРЅР°С‡Р°Р»Р° РїРѕР»СѓС‡Р°РµРј РјРµС‚Р°РґР°РЅРЅС‹Рµ Рѕ С„Р°Р№Р»Рµ
         const object = await env.R2.head(`videos/${videoPath}`);
-        
+
         if (!object) {
           return new Response(
             JSON.stringify({
@@ -152,9 +152,9 @@
           });
 
           if (!rangedObject) {
-            return new Response('Range Not Satisfiable', { 
+            return new Response('Range Not Satisfiable', {
               status: 416,
-              headers: corsHeaders 
+              headers: corsHeaders
             });
           }
 
@@ -181,7 +181,7 @@
             'Content-Length': fileSize.toString(),
             'Accept-Ranges': 'bytes',
             'Cache-Control': 'no-cache',
-            'ETag': object.httpEtag,
+            ETag: object.httpEtag,
             ...corsHeaders
           }
         });
@@ -250,29 +250,37 @@
     return new Response(
       JSON.stringify({
         status: 'success',
-        message: 'MasterMarat API СЃ R2 РёРЅС‚РµРіСЂР°С†РёРµР№ Рё РїР»РµРµСЂРѕРј СЂР°Р±РѕС‚Р°РµС‚!',
+        message:
+          'MasterMarat API СЃ R2 РёРЅС‚РµРіСЂР°С†РёРµР№ Рё РїР»РµРµСЂРѕРј СЂР°Р±РѕС‚Р°РµС‚!',
         worker_url: 'https://api.mastermarat.com',
         r2_connected: env.R2 ? 'Yes' : 'No',
         endpoints: {
           'GET /': 'Р­С‚Р° СЃС‚СЂР°РЅРёС†Р°',
           'GET /player/?lesson=X&token=Y&email=Z': 'HTML РІРёРґРµРѕРїР»РµРµСЂ',
-          'GET /thumbnails/{filename}': 'РџСѓР±Р»РёС‡РЅС‹Рµ РїСЂРµРІСЊСЋ РІРёРґРµРѕ РёР· R2',
-          'GET /video/{filename}?token=xxx': 'Р—Р°С‰РёС‰РµРЅРЅС‹Рµ РІРёРґРµРѕ РёР· R2 СЃ РїРѕРґРґРµСЂР¶РєРѕР№ streaming',
-          'POST /webhook/purchase': 'Webhook РѕС‚ SendPulse РїСЂРё РїРѕРєСѓРїРєРµ'
+          'GET /thumbnails/{filename}':
+            'РџСѓР±Р»РёС‡РЅС‹Рµ РїСЂРµРІСЊСЋ РІРёРґРµРѕ РёР· R2',
+          'GET /video/{filename}?token=xxx':
+            'Р—Р°С‰РёС‰РµРЅРЅС‹Рµ РІРёРґРµРѕ РёР· R2 СЃ РїРѕРґРґРµСЂР¶РєРѕР№ streaming',
+          'POST /webhook/purchase':
+            'Webhook РѕС‚ SendPulse РїСЂРё РїРѕРєСѓРїРєРµ'
         },
         test_links: {
           thumbnail: 'https://api.mastermarat.com/thumbnails/test_thumb.jpg',
           video_no_token: 'https://api.mastermarat.com/video/test_video.mp4',
-          video_with_token: 'https://api.mastermarat.com/video/test_video.mp4?token=test123',
-          player_demo: 'https://api.mastermarat.com/player/?lesson=test_video&token=demo123&email=demo@mastermarat.com'
+          video_with_token:
+            'https://api.mastermarat.com/video/test_video.mp4?token=test123',
+          player_demo:
+            'https://api.mastermarat.com/player/?lesson=test_video&token=demo123&email=demo@mastermarat.com'
         },
         file_structure: {
           thumbnails: 'R2://mastermarat-videos/thumbnails/',
           videos: 'R2://mastermarat-videos/videos/'
         },
         features: {
-          streaming: 'HTTP Range requests РїРѕРґРґРµСЂР¶РёРІР°СЋС‚СЃСЏ РґР»СЏ Р±С‹СЃС‚СЂРѕРіРѕ СЃС‚Р°СЂС‚Р° РІРёРґРµРѕ',
-          fullscreen: 'РџРѕР»РЅР°СЏ РїРѕРґРґРµСЂР¶РєР° fullscreen РЅР° РјРѕР±РёР»СЊРЅС‹С… СѓСЃС‚СЂРѕР№СЃС‚РІР°С…'
+          streaming:
+            'HTTP Range requests РїРѕРґРґРµСЂР¶РёРІР°СЋС‚СЃСЏ РґР»СЏ Р±С‹СЃС‚СЂРѕРіРѕ СЃС‚Р°СЂС‚Р° РІРёРґРµРѕ',
+          fullscreen:
+            'РџРѕР»РЅР°СЏ РїРѕРґРґРµСЂР¶РєР° fullscreen РЅР° РјРѕР±РёР»СЊРЅС‹С… СѓСЃС‚СЂРѕР№СЃС‚РІР°С…'
         },
         timestamp: new Date().toISOString()
       }),
@@ -782,7 +790,7 @@ async function handlePlayerRequest(request, env, corsHeaders) {
             
             // РћР±СЂР°Р±РѕС‚РєР° РѕС€РёР±РѕРє Р·Р°РіСЂСѓР·РєРё
             video.addEventListener('error', function(e) {
-                loading.innerHTML = '<div style="color: #ff6b6b; font-size: 14px;">вљ пёЏ РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё РІРёРґРµРѕ<br><small>' + 
+                loading.innerHTML = '<div style="color: #ff6b6b; font-size: 14px;">вљ пёЏ РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё РІРёРґРµРѕ<br><small>' + 
                                    (e.target.error ? e.target.error.message : 'РќРµРёР·РІРµСЃС‚РЅР°СЏ РѕС€РёР±РєР°') + '</small></div>';
                 console.error('Video loading error:', e);
             });
