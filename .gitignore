@@ -48,7 +48,7 @@ coverage/
 *.backup
 *.old
 tmp/
-temp/
+temp_upload/
 
 # Logs
 logs/
@@ -68,9 +68,6 @@ secrets/
 *.avi
 *.mkv
 *.webm
-# Keep test files
-!test_video.mp4
-!test_thumb.jpg
 
 # Databases
 *.sqlite
@@ -81,4 +78,6 @@ secrets/
 /content/videos/
 /content/thumbnails/
 analytics-data/
-user-data/
+user-data/re -Encoding UTF8 -NoNewline
+
+Write-Host "✅ .gitignore создан!" -ForegroundColor Green
