@@ -1,4 +1,54 @@
-﻿export default {
+﻿const COURSE_DATA = {
+  "course1": {
+    title: "Механика здоровья",
+    lessons: {
+      "week1_lesson1": {
+        title: "Введение в биомеханику тела",
+        video_file: "test_video.mp4",
+        thumbnail_file: "course1_week1_lesson1.jpg"
+      },
+      "week1_lesson2": {
+        title: "Основы правильной осанки",
+        video_file: "test_video.mp4",
+        thumbnail_file: "course1_week1_lesson2.jpg"
+      },
+      "week2_lesson1": {
+        title: "Работа с позвоночником",
+        video_file: "test_video.mp4",
+        thumbnail_file: "course1_week2_lesson1.jpg"
+      },
+      "week2_lesson2": {
+        title: "Упражнения для шеи",
+        video_file: "test_video.mp4",
+        thumbnail_file: "course1_week2_lesson2.jpg"
+      },
+      "week3_lesson1": {
+        title: "Техники самомассажа",
+        video_file: "test_video.mp4",
+        thumbnail_file: "course1_week3_lesson1.jpg"
+      },
+      "week3_lesson2": {
+        title: "Снятие мышечных блоков",
+        video_file: "test_video.mp4",
+        thumbnail_file: "course1_week3_lesson2.jpg"
+      },
+      "week4_lesson1": {
+        title: "Интеграция движений",
+        video_file: "test_video.mp4",
+        thumbnail_file: "course1_week4_lesson1.jpg"
+      },
+      "week4_lesson2": {
+        title: "Ежедневная практика",
+        video_file: "test_video.mp4",
+        thumbnail_file: "course1_week4_lesson2.jpg"
+      }
+    }
+  },
+  // Здесь будут добавлены другие курсы (course2, course3 и т.д.)
+  // Пока оставим только один для примера
+};
+
+export default {
   async fetch(request, env, _ctx) {
     const url = new URL(request.url);
 
@@ -16,23 +66,86 @@
     }
 
     // HTML плеер видео
-    if (url.pathname === '/player/' || url.pathname === '/player') {
+    if (url.pathname.startsWith('/player/')) {
       return handlePlayerRequest(request, env, corsHeaders);
     }
 
     // Публичные thumbnails (БЕЗ токена) - прямо из R2
     if (url.pathname.startsWith('/thumbnails/')) {
-      const thumbnailPath = url.pathname.replace('/thumbnails/', '');
+      // Извлекаем courseId и lessonId из пути
+      const pathParts = url.pathname.split('/');
+      if (pathParts.length < 4) { // Ожидаем /thumbnails/{courseId}/{lessonId}.jpg
+        return new Response(
+          JSON.stringify({
+            status: 'error',
+            error: 'Invalid thumbnail path',
+            message: 'Ожидаемый формат: /thumbnails/{courseId}/{lessonId}.jpg'
+          }),
+          {
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          }
+        );
+      }
+      const courseId = pathParts[2];
+      const lessonFile = pathParts[3]; // Например, week1_lesson1.jpg
+
+      const course = COURSE_DATA[courseId];
+      if (!course) {
+        return new Response(
+          JSON.stringify({
+            status: 'error',
+            error: 'Course not found',
+            courseId: courseId
+          }),
+          {
+            status: 404,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          }
+        );
+      }
+
+      // Находим урок по имени файла миниатюры
+      let lessonData = null;
+      for (const key in course.lessons) {
+        if (course.lessons[key].thumbnail_file === lessonFile) {
+          lessonData = course.lessons[key];
+          break;
+        }
+      }
+
+      if (!lessonData) {
+        return new Response(
+          JSON.stringify({
+            status: 'error',
+            error: 'Lesson thumbnail not found',
+            lessonFile: lessonFile
+          }),
+          {
+            status: 404,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          }
+        );
+      }
 
       try {
-        const object = await env.R2.get(`thumbnails/${thumbnailPath}`);
+        const object = await env.R2.get(`thumbnails/${courseId}/${lessonData.thumbnail_file}`);
 
         if (!object) {
           return new Response(
             JSON.stringify({
               status: 'error',
-              error: 'Thumbnail not found',
-              path: thumbnailPath
+              error: 'Thumbnail not found in R2',
+              path: `thumbnails/${courseId}/${lessonData.thumbnail_file}`
             }),
             {
               status: 404,
@@ -73,7 +186,27 @@
 
     // Защищенные видео с поддержкой Range requests для стриминга
     if (url.pathname.startsWith('/video/')) {
-      const videoPath = url.pathname.replace('/video/', '');
+      // Ожидаем формат /video/{courseId}/{lessonId}.mp4
+      const pathParts = url.pathname.split('/');
+      if (pathParts.length < 4) {
+        return new Response(
+          JSON.stringify({
+            status: 'error',
+            error: 'Invalid video path',
+            message: 'Ожидаемый формат: /video/{courseId}/{lessonId}.mp4'
+          }),
+          {
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          }
+        );
+      }
+      const courseId = pathParts[2];
+      const lessonFile = pathParts[3]; // Например, week1_lesson1.mp4
+
       const token = url.searchParams.get('token');
 
       if (!token) {
@@ -94,8 +227,10 @@
         );
       }
 
-      // Простая проверка токена (позже интегрируем с SendPulse)
-      if (token.length < 3) {
+      // TODO: Реализовать надежную проверку токена
+      // Токен должен содержать информацию о пользователе и курсах, к которым у него есть доступ.
+      // Для MVP пока оставим простую проверку, но в будущем здесь будет валидация JWT или подписанного токена.
+      if (token.length < 3) { // Пример: token.length < 3
         return new Response(
           JSON.stringify({
             status: 'error',
@@ -112,16 +247,78 @@
         );
       }
 
+      const course = COURSE_DATA[courseId];
+      if (!course) {
+        return new Response(
+          JSON.stringify({
+            status: 'error',
+            error: 'Course not found',
+            courseId: courseId
+          }),
+          {
+            status: 404,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          }
+        );
+      }
+
+      let lessonData = null;
+      for (const key in course.lessons) {
+        if (course.lessons[key].video_file === lessonFile) {
+          lessonData = course.lessons[key];
+          break;
+        }
+      }
+
+      if (!lessonData) {
+        return new Response(
+          JSON.stringify({
+            status: 'error',
+            error: 'Lesson video not found',
+            lessonFile: lessonFile
+          }),
+          {
+            status: 404,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          }
+        );
+      }
+
+      // TODO: Проверить, имеет ли токен доступ к этому конкретному курсу/уроку
+      // Например, если токен содержит список доступных курсов, проверить courseId в этом списке.
+      // if (!userHasAccessToCourse(token, courseId)) {
+      //   return new Response(
+      //     JSON.stringify({
+      //       status: 'error',
+      //       error: 'Access denied',
+      //       message: 'У вас нет доступа к этому курсу'
+      //     }),
+      //     {
+      //       status: 403,
+      //       headers: {
+      //         'Content-Type': 'application/json',
+      //         ...corsHeaders
+      //       }
+      //     }
+      //   );
+      // }
+
       try {
         // Сначала получаем метаданные о файле
-        const object = await env.R2.head(`videos/${videoPath}`);
+        const object = await env.R2.head(`videos/${courseId}/${lessonData.video_file}`);
 
         if (!object) {
           return new Response(
             JSON.stringify({
               status: 'error',
-              error: 'Video not found',
-              path: videoPath
+              error: 'Video not found in R2',
+              path: `videos/${courseId}/${lessonData.video_file}`
             }),
             {
               status: 404,
@@ -144,7 +341,7 @@
           const chunkSize = end - start + 1;
 
           // Получаем только нужную часть видео
-          const rangedObject = await env.R2.get(`videos/${videoPath}`, {
+          const rangedObject = await env.R2.get(`videos/${courseId}/${lessonData.video_file}`, {
             range: {
               offset: start,
               length: chunkSize
@@ -173,7 +370,7 @@
         }
 
         // Если нет range запроса, отдаем весь файл
-        const fullObject = await env.R2.get(`videos/${videoPath}`);
+        const fullObject = await env.R2.get(`videos/${courseId}/${lessonData.video_file}`);
 
         return new Response(fullObject.body, {
           headers: {
@@ -208,9 +405,14 @@
       try {
         const webhook = await request.json();
 
-        // Здесь будет логика создания токена пользователя
+        // TODO: Здесь будет логика определения купленного курса из webhook
+        // Для примера, предположим, что webhook содержит course_id
+        const purchasedCourseId = webhook.course_id || 'course1'; // Заглушка
+
+        // Здесь будет логика создания токена пользователя, который включает course_id
         const userToken = generateSimpleToken(
-          webhook.email || 'test@example.com'
+          webhook.email || 'test@example.com',
+          purchasedCourseId
         );
 
         // TODO: Обновить контакт в SendPulse через API
@@ -254,30 +456,25 @@
       JSON.stringify({
         status: 'success',
         message: 'MasterMarat API для MVP курса "Механика здоровья"',
-        worker_url: 'https://api.mastermarat.com',
+        worker_url: url.origin,
         r2_connected: env.R2 ? 'Yes' : 'No',
         endpoints: {
           'GET /': 'Эта страница',
-          'GET /player/?lesson=X&token=Y': 'HTML видеоплеер',
-          'GET /thumbnails/{filename}': 'Публичные превью видео из R2',
-          'GET /video/{filename}?token=xxx':
+          'GET /player/{courseId}/{lessonId}?token=Y': 'HTML видеоплеер',
+          'GET /thumbnails/{courseId}/{filename}': 'Публичные превью видео из R2',
+          'GET /video/{courseId}/{filename}?token=xxx':
             'Защищенные видео из R2 с поддержкой streaming',
           'POST /webhook/purchase': 'Webhook от SendPulse при покупке'
         },
         test_links: {
           player:
-            'https://api.mastermarat.com/player/?lesson=course1_week1_lesson1&token=demo123',
+            `${url.origin}/player/course1/week1_lesson1?token=demo123`,
           thumbnail:
-            'https://api.mastermarat.com/thumbnails/course1_week1_lesson1.jpg',
+            `${url.origin}/thumbnails/course1/week1_lesson1.jpg`,
           video:
-            'https://api.mastermarat.com/video/course1_week1_lesson1.mp4?token=demo123'
+            `${url.origin}/video/course1/week1_lesson1.mp4?token=demo123`
         },
-        course_structure: {
-          name: 'Механика здоровья',
-          weeks: 4,
-          lessons_per_week: 2,
-          total_lessons: 8
-        },
+        course_structure: COURSE_DATA, // Теперь ссылаемся на COURSE_DATA
         timestamp: new Date().toISOString()
       }),
       {
@@ -293,31 +490,91 @@
 // Обработка HTML плеера - упрощенная версия для MVP
 async function handlePlayerRequest(request, env, corsHeaders) {
   const url = new URL(request.url);
-  const lesson = url.searchParams.get('lesson') || 'course1_week1_lesson1';
+  // Ожидаем /player/{courseId}/{lessonId}
+  const pathParts = url.pathname.split('/');
+  const courseId = pathParts[2] || 'course1'; // По умолчанию course1
+  const lessonId = pathParts[3] || 'week1_lesson1'; // По умолчанию week1_lesson1
+
   const token = url.searchParams.get('token') || 'demo-token-123';
 
-  // Определяем название урока на основе ID
-  const lessonTitles = {
-    course1_week1_lesson1: 'Введение в биомеханику тела',
-    course1_week1_lesson2: 'Основы правильной осанки',
-    course1_week2_lesson1: 'Работа с позвоночником',
-    course1_week2_lesson2: 'Упражнения для шеи',
-    course1_week3_lesson1: 'Техники самомассажа',
-    course1_week3_lesson2: 'Снятие мышечных блоков',
-    course1_week4_lesson1: 'Интеграция движений',
-    course1_week4_lesson2: 'Ежедневная практика'
+  const course = COURSE_DATA[courseId];
+  if (!course) {
+    return new Response(`<h1>Курс "${courseId}" не найден</h1>`, { status: 404, headers: { 'Content-Type': 'text/html', ...corsHeaders } });
+  }
+
+  const lessonData = course.lessons[lessonId];
+  if (!lessonData) {
+    return new Response(`<h1>Урок "${lessonId}" в курсе "${courseId}" не найден</h1>`, { status: 404, headers: { 'Content-Type': 'text/html', ...corsHeaders } });
+  }
+
+  const lessonTitle = lessonData.title;
+  const videoFile = lessonData.video_file;
+
+  // --- Начало изменений для загрузки контента из R2 ---
+  let contentData = {
+    display_title: null,
+    description_points: ["Контент не загружен из R2."],
+    important_notes: ["Важное: Контент не загружен из R2."],
+    additional_resources: []
   };
 
-  const lessonTitle = lessonTitles[lesson] || 'Урок курса "Механика здоровья"';
+  try {
+    const contentObject = await env.R2.get(`content/${courseId}/${lessonId}.json`);
+    if (contentObject) {
+      contentData = await contentObject.json();
+    } else {
+      console.warn(`Content file content/${courseId}/${lessonId}.json not found in R2. Using default.`);
+    }
+  } catch (error) {
+    console.error(`Error fetching content from R2 for ${courseId}/${lessonId}.json:`, error);
+  }
+  // --- Конец изменений для загрузки контента из R2 ---
 
-  // HTML код плеера - минималистичная версия
-  const playerHTML = `<!DOCTYPE html>
+  const playerHTML = getPlayerHTML(courseId, lessonId, videoFile, token, lessonTitle, contentData);
+
+  return new Response(playerHTML, {
+    headers: {
+      'Content-Type': 'text/html;charset=UTF-8',
+      'Cache-Control': 'no-cache',
+      ...corsHeaders
+    }
+  });
+}
+
+function getPlayerHTML(courseId, lessonId, videoFile, token, lessonTitle, contentData) {
+  const displayTitle = contentData.display_title || lessonTitle;
+  return `<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MasterMarat - ${lessonTitle}</title>
-    <style>
+    <title>MasterMarat - ${displayTitle}</title>
+    ${getStylesHTML()}
+</head>
+<body>
+    ${getHeaderHTML()}
+    
+    <div class="video-container">
+        ${getVideoPlayerHTML(courseId, videoFile, token)}
+    </div>
+    
+    <div class="content">
+        ${getLessonContentHTML(displayTitle, contentData.description_points)}
+        ${getImportantNotesHTML(contentData.important_notes)}
+        ${getAdditionalResourcesHTML(contentData.additional_resources)}
+        ${getNavigationHTML(courseId, lessonId, token)}
+    </div>
+    
+    ${getFooterHTML()}
+
+    ${getScriptHTML(courseId, lessonId)}
+</body>
+</html>`;
+}
+
+// --- Новые вспомогательные функции ---
+function getStylesHTML() {
+  return `<style>
         * {
             margin: 0;
             padding: 0;
@@ -445,7 +702,7 @@ async function handlePlayerRequest(request, env, corsHeaders) {
             font-weight: bold;
         }
         
-        .homework {
+        .important-notes {
             background: linear-gradient(135deg, #F59B3A 0%, #E8851C 100%);
             padding: 20px;
             border-radius: 8px;
@@ -453,14 +710,53 @@ async function handlePlayerRequest(request, env, corsHeaders) {
             color: white;
         }
         
-        .homework h3 {
+        .important-notes h3 {
             font-size: 18px;
             margin-bottom: 10px;
             font-weight: 600;
         }
         
-        .homework p {
+        .important-notes p {
             line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        
+        .important-notes p:last-child {
+            margin-bottom: 0;
+        }
+
+        .additional-resources {
+            background: #e6f7ff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            border-left: 4px solid #1890ff;
+        }
+
+        .additional-resources h3 {
+            color: #1890ff;
+            font-size: 18px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .additional-resources ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .additional-resources li {
+            margin-bottom: 8px;
+        }
+
+        .additional-resources a {
+            color: #1890ff;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .additional-resources a:hover {
+            text-decoration: underline;
         }
         
         .navigation {
@@ -534,16 +830,18 @@ async function handlePlayerRequest(request, env, corsHeaders) {
                 flex-direction: column;
             }
         }
-    </style>
-</head>
-<body>
-    <div class="header">
+    </style>`;
+}
+
+function getHeaderHTML() {
+  return `<div class="header">
         <h1>MasterMarat</h1>
         <div class="course-info">Курс "Механика здоровья" • MVP версия</div>
-    </div>
-    
-    <div class="video-container">
-        <div class="video-wrapper">
+    </div>`;
+}
+
+function getVideoPlayerHTML(courseId, videoFile, token) {
+  return `<div class="video-wrapper">
             <div class="loading" id="loading">
                 <div class="spinner"></div>
                 <div>Загрузка видео...</div>
@@ -556,45 +854,61 @@ async function handlePlayerRequest(request, env, corsHeaders) {
                 preload="auto"
                 style="display: none;"
             >
-                <source src="https://api.mastermarat.com/video/${lesson}.mp4?token=${token}" type="video/mp4">
+                <source src="/video/${courseId}/${videoFile}?token=${token}" type="video/mp4">
                 Ваш браузер не поддерживает видео HTML5.
             </video>
-        </div>
-    </div>
-    
-    <div class="content">
-        <h2 class="lesson-title">${lessonTitle}</h2>
+        </div>`;
+}
+
+function getLessonContentHTML(lessonTitle, descriptionPoints) {
+  const pointsHtml = descriptionPoints.map(point => `<li>${point}</li>`).join('');
+  return `<h2 class="lesson-title">${lessonTitle}</h2>
         
         <div class="lesson-description">
-            <h3>В этом уроке:</h3>
+            <h3>В этом видео:</h3>
             <ul>
-                <li>Основные принципы работы с телом</li>
-                <li>Безопасные техники выполнения упражнений</li>
-                <li>Понимание биомеханики движений</li>
-                <li>Практические рекомендации для ежедневного применения</li>
+                ${pointsHtml}
             </ul>
-        </div>
-        
-        <div class="homework">
-            <h3>Домашнее задание</h3>
-            <p>Выполните изученные техники 2 раза в день. Обратите внимание на ощущения в теле и запишите свои наблюдения. В следующем уроке мы разберем типичные ошибки.</p>
-        </div>
-        
-        <div class="navigation">
-            <button class="nav-button secondary" onclick="alert('Демо версия: навигация будет доступна в полной версии')">
-                ← Предыдущий урок
-            </button>
-            <button class="nav-button primary" onclick="alert('Демо версия: навигация будет доступна в полной версии')">
-                Следующий урок →
-            </button>
-        </div>
-    </div>
-    
-    <div class="footer">
-        <p>© 2025 MasterMarat • Остеопатические методики • Марат Малиев</p>
-    </div>
+        </div>`;
+}
 
-    <script>
+function getHomeworkHTML(homeworkText) {
+  return `<div class="homework">
+            <h3>Важное</h3>
+            <p>${homeworkText}</p>
+        </div>`;
+}
+
+function getNavigationHTML(courseId, lessonId, token) {
+  const course = COURSE_DATA[courseId];
+  const lessonKeys = Object.keys(course.lessons);
+  const currentIndex = lessonKeys.indexOf(lessonId);
+
+  const prevLessonId = currentIndex > 0 ? lessonKeys[currentIndex - 1] : null;
+  const nextLessonId = currentIndex < lessonKeys.length - 1 ? lessonKeys[currentIndex + 1] : null;
+
+  const prevButton = prevLessonId
+    ? `<a href="/player/${courseId}/${prevLessonId}?token=${token}" class="nav-button secondary">← Предыдущий урок</a>`
+    : `<button class="nav-button secondary" disabled>← Предыдущий урок</button>`;
+
+  const nextButton = nextLessonId
+    ? `<a href="/player/${courseId}/${nextLessonId}?token=${token}" class="nav-button primary">Следующий урок →</a>`
+    : `<button class="nav-button primary" disabled>Следующий урок →</button>`;
+
+  return `<div class="navigation">
+            ${prevButton}
+            ${nextButton}
+        </div>`;
+}
+
+function getFooterHTML() {
+  return `<div class="footer">
+        <p>© 2025 MasterMarat • Остеопатические методики • Марат Малиев</p>
+    </div>`;
+}
+
+function getScriptHTML(courseId, lessonId) {
+  return `<script>
         // Простая инициализация плеера
         document.addEventListener('DOMContentLoaded', function() {
             const video = document.getElementById('videoPlayer');
@@ -614,31 +928,21 @@ async function handlePlayerRequest(request, env, corsHeaders) {
             
             // Простая аналитика
             video.addEventListener('play', function() {
-                console.log('Начат просмотр урока:', '${lesson}');
+                console.log('Начат просмотр урока:', '${courseId}/${lessonId}');
             });
             
             video.addEventListener('ended', function() {
-                console.log('Завершен просмотр урока:', '${lesson}');
+                console.log('Завершен просмотр урока:', '${courseId}/${lessonId}');
             });
         });
-    </script>
-</body>
-</html>`;
-
-  return new Response(playerHTML, {
-    headers: {
-      'Content-Type': 'text/html;charset=UTF-8',
-      'Cache-Control': 'no-cache',
-      ...corsHeaders
-    }
-  });
+    </script>`;
 }
 
 // Простая функция генерации токена
-function generateSimpleToken(email) {
+function generateSimpleToken(email, courseId) {
   const timestamp = Date.now().toString();
   const emailHash = btoa(email)
     .replace(/[^a-zA-Z0-9]/g, '')
     .substring(0, 8);
-  return `${emailHash}_${timestamp.substring(-8)}`;
+  return `${emailHash}_${courseId}_${timestamp.substring(-8)}`;
 }

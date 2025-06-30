@@ -5,19 +5,16 @@
     "main":  "src/worker.js",
     "scripts":  {
                     "dev":  "wrangler dev",
-                    "deploy":  "wrangler deploy --env production",
-                    "deploy:staging":  "wrangler deploy --env staging",
-                    "preview":  "wrangler dev --remote",
-                    "test":  "npm run test:api",
-                    "test:api":  "node ../../scripts/test-api.js",
-                    "login":  "wrangler login",
-                    "whoami":  "wrangler whoami",
-                    "logs":  "wrangler tail",
-                    "logs:prod":  "wrangler tail --env production",
+                    "dev:remote":  "wrangler dev --env dev --remote",
+                    "test":  "node ../../scripts/test-api.js",
                     "lint":  "eslint src/",
-                    "lint:fix":  "eslint src/ --fix",
                     "format":  "prettier --write src/**/*.js",
-                    "format:check":  "prettier --check src/**/*.js"
+                    "deploy:dev":  "wrangler deploy --env dev",
+                    "logs:dev":  "wrangler tail --env dev",
+                    "deploy":  "wrangler deploy",
+                    "logs":  "wrangler tail",
+                    "login":  "wrangler login",
+                    "whoami":  "wrangler whoami"
                 },
     "keywords":  [
                      "cloudflare",

@@ -3,7 +3,7 @@
 ## ✅ ЧТО СДЕЛАНО (100% готово)
 
 ### **🏗️ Техническая инфраструктура**
-- ✅ **Cloudflare Worker API** развернут на `api.mastermarat.com`
+- ✅ **Cloudflare Worker API** развернут на `api.mastermarat.com` (production) и `api-dev.mastermarat.com` (development)
 - ✅ **R2 Object Storage** настроен (`mastermarat-videos` bucket)
 - ✅ **Custom domain** настроен и работает
 - ✅ **CORS политики** настроены правильно
@@ -168,6 +168,7 @@ cd C:\Projects\mastermaratcom\mastermarat-project\workers\api
 npm run dev          # локальный Worker
 npm run test:api     # тестирование API
 npm run deploy       # деплой в продакшен
+npm run deploy --env dev # деплой в dev-окружение
 npm run logs         # просмотр логов
 ```
 

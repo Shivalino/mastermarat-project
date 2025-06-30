@@ -963,7 +963,7 @@ async function handlePlayerRequest(request, env, corsHeaders) {
                 telegramNotice.style.display = 'block';
                 telegramNotice.className = 'telegram-notice';
                 telegramNotice.innerHTML = `
-                    <div>📱 Вы используете Telegram браузер</div>
+                    <div>'📱 Вы используете Telegram браузер'<div>
                     <a href="/telegram-player/?lesson=${lesson}&token=${token}" class="telegram-fullscreen-btn">
                         🎬 Открыть в полноэкранном режиме
                     </a>
