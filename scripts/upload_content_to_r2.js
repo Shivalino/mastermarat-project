@@ -29,7 +29,7 @@ async function uploadContentToR2() {
 
       try {
         console.log(`Uploading ${localFilePath} to ${R2_BUCKET_NAME}/${r2ObjectKey}...`);
-        execSync(`wrangler r2 put ${R2_BUCKET_NAME}/${r2ObjectKey} --file=${localFilePath}`);
+        execSync(`wrangler r2 object put ${R2_BUCKET_NAME}/${r2ObjectKey} --file="${localFilePath.replace(/\\/g, '/')}" --remote`);
         console.log(`Successfully uploaded ${r2ObjectKey}`);
       } catch (error) {
         console.error(`Failed to upload ${r2ObjectKey}:`, error.message);

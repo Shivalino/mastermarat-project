@@ -16,6 +16,7 @@ bucket_name = "mastermarat-videos"
 # Deploys with: wrangler deploy --env dev
 [env.dev]
 name = "mastermarat-api-dev"
+compatibility_date = "2024-01-01"
 route = "api-dev.mastermarat.com/*"
 vars = { ENVIRONMENT = "development" }
 

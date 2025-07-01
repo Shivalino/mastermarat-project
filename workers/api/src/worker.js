@@ -872,6 +872,35 @@ function getLessonContentHTML(lessonTitle, descriptionPoints) {
         </div>`;
 }
 
+function getImportantNotesHTML(importantNotes) {
+  if (!importantNotes || importantNotes.length === 0) {
+    return '';
+  }
+  
+  const notesHtml = importantNotes.map(note => `<p>${note}</p>`).join('');
+  return `<div class="important-notes">
+            <h3>Важные моменты</h3>
+            ${notesHtml}
+        </div>`;
+}
+
+function getAdditionalResourcesHTML(additionalResources) {
+  if (!additionalResources || additionalResources.length === 0) {
+    return '';
+  }
+  
+  const resourcesHtml = additionalResources.map(resource => 
+    `<li><a href="${resource.url}" target="_blank">${resource.title}</a></li>`
+  ).join('');
+  
+  return `<div class="additional-resources">
+            <h3>Дополнительные материалы</h3>
+            <ul>
+                ${resourcesHtml}
+            </ul>
+        </div>`;
+}
+
 function getHomeworkHTML(homeworkText) {
   return `<div class="homework">
             <h3>Важное</h3>
