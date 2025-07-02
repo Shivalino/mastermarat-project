@@ -1,33 +1,31 @@
 ﻿// utils/errors.js
-import { createCorsResponse } from './cors.js';
+import { CORS_HEADERS } from './cors.js';
 
-export function createErrorResponse(error, status = 500, extra = {}) {
-  return createCorsResponse(
-    JSON.stringify({
-      status: 'error',
-      error: error,
-      timestamp: new Date().toISOString(),
-      ...extra
-    }),
-    {
-      status,
-      headers: { 'Content-Type': 'application/json' }
+export function createErrorResponse(message, status = 400, details = null) {
+  const body = {
+    status: 'error',
+    message,
+    ...(details && { details })
+  };
+  
+  return new Response(JSON.stringify(body, null, 2), {
+    status,
+    headers: {
+      ...CORS_HEADERS,
+      'Content-Type': 'application/json;charset=UTF-8'
     }
-  );
+  });
 }
 
 export function createNotFoundResponse(resource) {
-  return createErrorResponse(
-    ${resource} not found,
-    404,
-    { resource }
-  );
+  return createErrorResponse(`${resource} not found`, 404);
 }
 
-export function createUnauthorizedResponse(message = 'Unauthorized') {
-  return createErrorResponse(message, 401);
+export function createUnauthorizedResponse(reason = 'Unauthorized') {
+  return createErrorResponse(reason, 401);
 }
 
-export function createBadRequestResponse(message = 'Bad Request') {
-  return createErrorResponse(message, 400);
+export { createCorsResponse } from './cors.js';
+export function createBadRequestResponse(message, details = null) {
+  return createErrorResponse(message, 400, details);
 }

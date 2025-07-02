@@ -2,7 +2,7 @@
     "name":  "mastermarat-api",
     "version":  "1.0.0",
     "description":  "MasterMarat API Worker for protected video delivery",
-    "main":  "src/worker.js",
+    "main":  "src/worker-new.js",
     "scripts":  {
                     "dev":  "wrangler dev",
                     "dev:remote":  "wrangler dev --env dev --remote",

@@ -1,25 +1,24 @@
-# Production Worker (default environment)
-# Deploys with: wrangler deploy
 name = "mastermarat-api"
-main = "src/worker.js"
-compatibility_date = "2024-01-01"
-route = "api.mastermarat.com/*"
-vars = { ENVIRONMENT = "production" }
+main = "src/worker-new.js"
+compatibility_date = "2024-07-01"
 
+# R2 bucket binding
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "mastermarat-videos"
 
-# --------------------------------------------------
+# Production environment
+[env.production]
+name = "mastermarat-api"
+route = { pattern = "api.mastermarat.com/*", zone_name = "mastermarat.com" }
 
-# Development Environment
-# Deploys with: wrangler deploy --env dev
+[env.production.vars]
+ENVIRONMENT = "production"
+
+# Development environment
 [env.dev]
 name = "mastermarat-api-dev"
-compatibility_date = "2024-01-01"
-route = "api-dev.mastermarat.com/*"
-vars = { ENVIRONMENT = "development" }
+route = { pattern = "api-dev.mastermarat.com/*", zone_name = "mastermarat.com" }
 
-[[env.dev.r2_buckets]]
-binding = "R2"
-bucket_name = "mastermarat-videos"
+[env.dev.vars]
+ENVIRONMENT = "development"

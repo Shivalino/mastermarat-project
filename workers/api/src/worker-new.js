@@ -1,4 +1,4 @@
-﻿// worker.js - только роутинг
+﻿// worker-new.js - только роутинг
 import { CORS_HEADERS } from './utils/cors.js';
 import { createErrorResponse } from './utils/errors.js';
 
@@ -9,6 +9,7 @@ import { handleVideo } from './handlers/video.js';
 import { handlePlayerLearning } from './handlers/player-learning.js';
 import { handlePlayerArchive } from './handlers/player-archive.js';
 import { handleWebhooks } from './handlers/webhooks.js';
+import { handleTestPage } from './handlers/test.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -23,6 +24,11 @@ export default {
       // Роутинг запросов
       if (url.pathname === '/') {
         return await handleApiDocumentation(request, env, ctx);
+      }
+
+      // НОВЫЙ: Тестовая страница
+      if (url.pathname === '/test') {
+        return await handleTestPage(request, env, ctx);
       }
 
       if (url.pathname.startsWith('/thumbnails/')) {
