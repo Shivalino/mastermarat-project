@@ -28,29 +28,22 @@ export async function handlePlayerArchive(request, env, ctx) {
     const weekNum = weekMatch ? parseInt(weekMatch[1]) : 1;
     const lessonNum = weekMatch ? parseInt(weekMatch[2]) : 1;
     
-    lessonItems.push(`
-      <div class="lesson-card">
-        <a href="${url.origin}/player/${courseId}/${lessonId}?token=${token}">
-          <div class="lesson-thumbnail">
-            <img src="${url.origin}/thumbnails/${courseId}/${lesson.thumbnail_file}" alt="${lesson.title}">
-            <div class="play-overlay">
-              <svg class="play-icon" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" fill="white"/>
-              </svg>
-            </div>
-          </div>
-          <div class="lesson-info">
-            <div class="lesson-meta">
-              <span class="week-badge">Неделя ${weekNum}</span>
-              <span class="lesson-number">Урок ${lessonNum}</span>
-            </div>
-            <h3>${lesson.title}</h3>
-          </div>
-        </a>
-      </div>
-    `);
+    lessonItems.push({
+      id: lessonId,
+      weekNum,
+      lessonNum,
+      title: lesson.title,
+      thumbnail: lesson.thumbnail_file || 'default_thumb.jpg'
+    });
   }
   
+  // Сортируем по неделям и урокам
+  lessonItems.sort((a, b) => {
+    if (a.weekNum !== b.weekNum) return a.weekNum - b.weekNum;
+    return a.lessonNum - b.lessonNum;
+  });
+  
+  // Генерируем HTML архива с зеленой палитрой
   const archiveHTML = `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -60,73 +53,84 @@ export async function handlePlayerArchive(request, env, ctx) {
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
-        body { 
+        body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0a0a0a;
-            color: #ffffff;
+            background: #F5F1E8;
+            color: #2C3E50;
             min-height: 100vh;
+            font-size: 18px;
+            line-height: 1.6;
         }
         
         .header {
-            background: linear-gradient(135deg, #3D968C 0%, #2a6b64 100%);
-            color: white;
-            padding: 40px 20px;
-            text-align: center;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            background: #2E8B57;
+            padding: 30px 0;
+            box-shadow: 0 4px 20px rgba(46, 139, 87, 0.1);
+        }
+        
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 25px;
         }
         
         .header h1 {
-            font-size: 2rem;
-            margin-bottom: 10px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            font-size: 38px;
+            color: white;
+            font-weight: 700;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
         }
         
         .header p {
-            font-size: 1.1rem;
-            opacity: 0.95;
+            font-size: 20px;
+            color: rgba(255, 255, 255, 0.95);
+            font-weight: 500;
         }
         
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 40px 20px;
+            padding: 60px 25px;
         }
         
         .section-title {
-            font-size: 1.5rem;
-            margin-bottom: 30px;
-            color: #fff;
+            font-size: 32px;
+            margin-bottom: 40px;
+            color: #2E8B57;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 15px;
+            font-weight: 700;
         }
         
         .section-title::before {
             content: '';
-            width: 4px;
-            height: 24px;
-            background: #3D968C;
-            border-radius: 2px;
+            width: 5px;
+            height: 32px;
+            background: #F59B3A;
+            border-radius: 3px;
         }
         
         .lessons-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 25px;
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+            gap: 30px;
         }
         
         .lesson-card {
-            background: #1a1a1a;
-            border-radius: 12px;
+            background: white;
+            border-radius: 16px;
             overflow: hidden;
             transition: all 0.3s ease;
-            border: 1px solid #2a2a2a;
+            border: 2px solid transparent;
+            box-shadow: 0 4px 15px rgba(46, 139, 87, 0.08);
         }
         
         .lesson-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(61, 150, 140, 0.3);
-            border-color: #3D968C;
+            box-shadow: 0 10px 30px rgba(46, 139, 87, 0.15);
+            border-color: #2E8B57;
         }
         
         .lesson-card a {
@@ -139,7 +143,7 @@ export async function handlePlayerArchive(request, env, ctx) {
             position: relative;
             width: 100%;
             padding-top: 56.25%; /* 16:9 aspect ratio */
-            background: #000;
+            background: #E6F3F0;
             overflow: hidden;
         }
         
@@ -163,7 +167,7 @@ export async function handlePlayerArchive(request, env, ctx) {
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0,0,0,0.4);
+            background: rgba(46, 139, 87, 0.8);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -176,126 +180,176 @@ export async function handlePlayerArchive(request, env, ctx) {
         }
         
         .play-icon {
-            width: 60px;
-            height: 60px;
-            background: rgba(61, 150, 140, 0.9);
+            width: 70px;
+            height: 70px;
+            background: white;
             border-radius: 50%;
-            padding: 15px;
-            padding-left: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+        
+        .play-icon svg {
+            width: 30px;
+            height: 30px;
+            fill: #2E8B57;
+            margin-left: 4px;
         }
         
         .lesson-info {
-            padding: 20px;
+            padding: 25px;
         }
         
         .lesson-meta {
             display: flex;
-            gap: 10px;
-            margin-bottom: 12px;
+            gap: 12px;
+            margin-bottom: 15px;
         }
         
         .week-badge {
-            background: #3D968C;
+            background: #2E8B57;
             color: white;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
         }
         
         .lesson-number {
             color: #666;
-            font-size: 0.8rem;
+            font-size: 16px;
             display: flex;
             align-items: center;
+            font-weight: 500;
         }
         
         .lesson-info h3 {
-            font-size: 1.1rem;
-            font-weight: 600;
+            font-size: 22px;
+            font-weight: 700;
             line-height: 1.4;
-            color: #fff;
+            color: #2C3E50;
+        }
+        
+        /* Пустое состояние */
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: #666;
+        }
+        
+        .empty-state h2 {
+            font-size: 28px;
+            margin-bottom: 20px;
+            color: #2E8B57;
+        }
+        
+        .empty-state p {
+            font-size: 20px;
+            line-height: 1.8;
         }
         
         /* Адаптивность */
         @media (max-width: 768px) {
+            .header {
+                padding: 20px 0;
+            }
+            
             .header h1 {
-                font-size: 1.5rem;
+                font-size: 28px;
+            }
+            
+            .header p {
+                font-size: 18px;
             }
             
             .container {
-                padding: 20px 15px;
+                padding: 40px 20px;
+            }
+            
+            .section-title {
+                font-size: 24px;
+                margin-bottom: 30px;
             }
             
             .lessons-grid {
                 grid-template-columns: 1fr;
                 gap: 20px;
             }
-        }
-        
-        /* Анимация появления */
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
+            
+            .lesson-info {
+                padding: 20px;
             }
-            to {
-                opacity: 1;
-                transform: translateY(0);
+            
+            .lesson-info h3 {
+                font-size: 19px;
+            }
+            
+            .week-badge {
+                font-size: 14px;
+                padding: 5px 12px;
+            }
+            
+            .play-icon {
+                width: 60px;
+                height: 60px;
             }
         }
-        
-        .lesson-card {
-            animation: fadeInUp 0.6s ease forwards;
-            opacity: 0;
-        }
-        
-        .lesson-card:nth-child(1) { animation-delay: 0.1s; }
-        .lesson-card:nth-child(2) { animation-delay: 0.2s; }
-        .lesson-card:nth-child(3) { animation-delay: 0.3s; }
-        .lesson-card:nth-child(4) { animation-delay: 0.4s; }
-        .lesson-card:nth-child(5) { animation-delay: 0.5s; }
-        .lesson-card:nth-child(6) { animation-delay: 0.6s; }
-        .lesson-card:nth-child(7) { animation-delay: 0.7s; }
-        .lesson-card:nth-child(8) { animation-delay: 0.8s; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1> Архив курса</h1>
-        <p>${course.title}</p>
+        <div class="header-content">
+            <h1>${course.title}</h1>
+            <p>Полный архив видеоуроков курса</p>
+        </div>
     </div>
     
     <div class="container">
-        <h2 class="section-title">Все уроки курса (${Object.keys(course.lessons).length})</h2>
-        <div class="lessons-grid">
-            ${lessonItems.join('')}
-        </div>
-    </div>
-
-    <script>
-        console.log('Archive mode loaded for course: ${courseId}');
+        <h2 class="section-title">Все уроки курса</h2>
         
-        // Предзагрузка изображений при наведении
-        document.querySelectorAll('.lesson-card').forEach(card => {
-            card.addEventListener('mouseenter', () => {
-                const link = card.querySelector('a');
-                if (link) {
-                    const preload = document.createElement('link');
-                    preload.rel = 'prefetch';
-                    preload.href = link.href;
-                    document.head.appendChild(preload);
-                }
-            });
-        });
-    </script>
+        ${lessonItems.length > 0 ? `
+        <div class="lessons-grid">
+            ${lessonItems.map(lesson => `
+            <div class="lesson-card">
+                <a href="${url.origin}/player/${courseId}/${lesson.id}?token=${token}">
+                    <div class="lesson-thumbnail">
+                        <img src="${url.origin}/thumbnails/${courseId}/${lesson.thumbnail}" 
+                             alt="${lesson.title}" 
+                             loading="lazy">
+                        <div class="play-overlay">
+                            <div class="play-icon">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M8 5v14l11-7z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lesson-info">
+                        <div class="lesson-meta">
+                            <span class="week-badge">Неделя ${lesson.weekNum}</span>
+                            <span class="lesson-number">Урок ${lesson.lessonNum}</span>
+                        </div>
+                        <h3>${lesson.title}</h3>
+                    </div>
+                </a>
+            </div>
+            `).join('')}
+        </div>
+        ` : `
+        <div class="empty-state">
+            <h2>Уроки скоро появятся</h2>
+            <p>Мы работаем над добавлением контента.<br>Пожалуйста, проверьте позже.</p>
+        </div>
+        `}
+    </div>
 </body>
 </html>`;
   
   return createCorsResponse(archiveHTML, {
     headers: {
       'Content-Type': 'text/html;charset=UTF-8',
-      'Cache-Control': 'no-cache'
+      'Cache-Control': 'public, max-age=3600'
     }
   });
 }
