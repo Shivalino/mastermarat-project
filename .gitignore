@@ -68,16 +68,52 @@ secrets/
 *.avi
 *.mkv
 *.webm
+*.mp3
+*.wav
+
+# Images (except docs)
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.svg
+!docs/**/*.jpg
+!docs/**/*.jpeg
+!docs/**/*.png
+!docs/**/*.gif
+!docs/**/*.svg
+
+# Project specific
+/content/videos/
+/content/thumbnails/
+/content/**/*.mp4
+/content/**/*.jpg
+/content/**/*.jpeg
+/content/**/*.png
+
+# Data files (but keep structure)
+/data/courses-database.json
+/data/courses-backup-*.json
+/data/import/*.csv
+!data/.gitkeep
+!data/import/.gitkeep
+
+# Analytics and user data
+analytics-data/
+user-data/
 
 # Databases
 *.sqlite
 *.sqlite3
 *.db
 
-# Project specific
-/content/videos/
-/content/thumbnails/
-analytics-data/
-user-data/re -Encoding UTF8 -NoNewline
+# PDF files (except docs)
+*.pdf
+!docs/**/*.pdf
 
-Write-Host "✅ .gitignore создан!" -ForegroundColor Green
+# Keep empty directories
+!content/.gitkeep
+!content/videos/.gitkeep
+!content/thumbnails/.gitkeep
+!scripts/.gitkeep

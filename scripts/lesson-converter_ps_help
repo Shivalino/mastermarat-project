@@ -1,0 +1,11 @@
+# Сохрани скрипт
+cd C:\Projects\mastermaratcom\mastermarat-project\scripts
+./lesson-converter.ps1
+
+# Меню:
+# 1. Создать новый урок - откроет блокнот с шаблоном
+# 2. Конвертировать файл - из .txt в .json
+# 3. Пакетная конвертация - все файлы сразу
+
+# Или напрямую:
+./lesson-converter.ps1 -Action convert -InputFile "course01_lesson001.txt" -CourseId "course01" -LessonId "lesson001"
