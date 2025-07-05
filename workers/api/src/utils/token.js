@@ -2,6 +2,12 @@
 import { PUBLIC_COURSES, PUBLIC_LESSONS } from '../config/constants.js';
 import { TEST_TOKENS, TOKEN_PERMISSIONS } from '../config/constants.js';
 
+/**
+ * Генерирует токен доступа на основе email и курса
+ * @param {string} email - Email пользователя
+ * @param {string|null} courseId - ID курса (опционально)
+ * @returns {string} Сгенерированный токен
+ */
 export function generateToken(email, courseId = null) {
   const timestamp = Date.now().toString(36);
   const emailHash = btoa(email).replace(/=/g, '').substring(0, 8);
@@ -9,18 +15,33 @@ export function generateToken(email, courseId = null) {
   return `${emailHash}_${coursePrefix}${timestamp}`;
 }
 
+/**
+ * Проверяет формат токена
+ * @param {string} token - Токен для проверки
+ * @returns {boolean} true если токен валидный
+ */
 export function validateTokenFormat(token) {
-  // РџСЂРѕРІРµСЂСЏРµРј С‚РµСЃС‚РѕРІС‹Рµ С‚РѕРєРµРЅС‹
+  // Проверяем тестовые токены
   if (Object.values(TEST_TOKENS).includes(token)) {
     return true;
   }
 
-  // РџСЂРѕРІРµСЂСЏРµРј С„РѕСЂРјР°С‚ РѕР±С‹С‡РЅС‹С… С‚РѕРєРµРЅРѕРІ
+  // Проверяем формат обычных токенов
   return token && token.length >= 3 && token.includes('_');
 }
 
+/**
+ * Парсит информацию из токена
+ * @param {string} token - Токен для парсинга
+ * @returns {Object} Объект с информацией о токене
+ * @returns {boolean} returns.isTestToken - Является ли токен тестовым
+ * @returns {Object} returns.permissions - Права доступа (для тестовых токенов)
+ * @returns {string} returns.emailHash - Хеш email (для обычных токенов)
+ * @returns {string|null} returns.courseId - ID курса (для обычных токенов)
+ * @returns {string} returns.timestamp - Временная метка (для обычных токенов)
+ */
 export function parseTokenInfo(token) {
-  // Р”Р»СЏ С‚РµСЃС‚РѕРІС‹С… С‚РѕРєРµРЅРѕРІ РІРѕР·РІСЂР°С‰Р°РµРј РёС… РїСЂР°РІР°
+  // Для тестовых токенов возвращаем их права
   if (TOKEN_PERMISSIONS[token]) {
     return {
       isTestToken: true,
@@ -29,7 +50,7 @@ export function parseTokenInfo(token) {
     };
   }
 
-  // Р”Р»СЏ РѕР±С‹С‡РЅС‹С… С‚РѕРєРµРЅРѕРІ РїР°СЂСЃРёРј СЃС‚СЂСѓРєС‚СѓСЂСѓ
+  // Для обычных токенов парсим структуру
   const parts = token.split('_');
   return {
     isTestToken: false,
@@ -39,28 +60,35 @@ export function parseTokenInfo(token) {
   };
 }
 
+/**
+ * Проверяет доступ токена к курсу и функции
+ * @param {string} token - Токен доступа
+ * @param {string} courseId - ID курса (например, 'course01')
+ * @param {string} [feature='player'] - Функция для проверки ('player', 'archive', 'download')
+ * @returns {{allowed: boolean, reason?: string, permissions?: Object}} Результат проверки
+ */
 export function hasAccess(token, courseId, feature = 'player') {
   const tokenInfo = parseTokenInfo(token);
 
-  // Р”Р»СЏ С‚РµСЃС‚РѕРІС‹С… С‚РѕРєРµРЅРѕРІ РїСЂРѕРІРµСЂСЏРµРј РїСЂР°РІР°
+  // Для тестовых токенов проверяем права
   if (tokenInfo.isTestToken) {
     const perms = tokenInfo.permissions;
 
-    // РџСЂРѕРІРµСЂСЏРµРј РЅРµ РёСЃС‚РµРє Р»Рё С‚РѕРєРµРЅ
+    // Проверяем не истек ли токен
     if (new Date(perms.expires) < new Date()) {
       return { allowed: false, reason: 'Token expired' };
     }
 
-    // SuperUser РёРјРµРµС‚ РґРѕСЃС‚СѓРї РєРѕ РІСЃРµРјСѓ
+    // SuperUser имеет доступ ко всему
     if (perms.type === 'superuser') {
       return { allowed: true, permissions: perms };
     }
 
-    // РџСЂРѕРІРµСЂСЏРµРј РґРѕСЃС‚СѓРї Рє РєСѓСЂСЃСѓ
+    // Проверяем доступ к курсу
     const hasCourseAccess =
       perms.courses.includes('*') || perms.courses.includes(courseId);
 
-    // РџСЂРѕРІРµСЂСЏРµРј РґРѕСЃС‚СѓРї Рє С„СѓРЅРєС†РёРё
+    // Проверяем доступ к функции
     const hasFeatureAccess = perms.features.includes(feature);
 
     if (!hasCourseAccess) {
@@ -74,14 +102,25 @@ export function hasAccess(token, courseId, feature = 'player') {
     return { allowed: true, permissions: perms };
   }
 
-  // Р”Р»СЏ РѕР±С‹С‡РЅС‹С… С‚РѕРєРµРЅРѕРІ - РїСЂРѕСЃС‚Р°СЏ РїСЂРѕРІРµСЂРєР°
-  // TODO: РёРЅС‚РµРіСЂР°С†РёСЏ СЃ SendPulse
+  // Для обычных токенов - простая проверка
+  // TODO: интеграция с SendPulse
   return { allowed: true, permissions: { type: 'user' } };
 }
+
+/**
+ * Генерирует простой токен без привязки к email
+ * @returns {string} Случайный токен
+ */
 export function generateSimpleToken() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
-// Функция проверки публичного доступа
+
+/**
+ * Проверяет публичный доступ к курсу или уроку
+ * @param {string} courseId - ID курса
+ * @param {string|null} [lessonId=null] - ID урока (опционально)
+ * @returns {boolean} true если доступ публичный
+ */
 export function isPublicAccess(courseId, lessonId = null) {
   // Проверяем, является ли курс публичным
   if (PUBLIC_COURSES.includes(courseId)) {

@@ -1,5 +1,9 @@
 // handlers/video.js
-import { createCorsResponse, createUnauthorizedResponse, createNotFoundResponse } from '../utils/errors.js';
+import {
+  createCorsResponse,
+  createUnauthorizedResponse,
+  createNotFoundResponse
+} from '../utils/errors.js';
 import { validateTokenFormat, hasAccess } from '../utils/token.js';
 import { COURSE_DATA } from '../config/courses.js';
 import { isPublicAccess } from '../utils/token.js';
@@ -7,8 +11,6 @@ import { isPublicAccess } from '../utils/token.js';
 export async function handleVideo(request, env, ctx) {
   const url = new URL(request.url);
   const pathParts = url.pathname.split('/').filter(p => p);
-  const lessonId = videoFile.replace('.mp4', '');
-  const isPublic = isPublicAccess(courseId, lessonId);
 
   if (pathParts.length < 3) {
     return createNotFoundResponse('Video');
@@ -18,16 +20,21 @@ export async function handleVideo(request, env, ctx) {
   const fileName = pathParts[2];
   const token = url.searchParams.get('token');
 
-  // Проверяем токен
-  if (!isPublic) {
-  if (!token) {
-    return createUnauthorizedResponse('Token required');
-  }
+  // Извлекаем lessonId из имени файла
+  const lessonId = fileName.replace('.mp4', '');
+  const isPublic = isPublicAccess(courseId, lessonId);
 
-  // Проверяем доступ
-  const accessCheck = hasAccess(token, courseId, 'player');
-  if (!accessCheck.allowed) {
-    return createUnauthorizedResponse(accessCheck.reason);
+  // Проверяем токен только для непубличных курсов
+  if (!isPublic) {
+    if (!token) {
+      return createUnauthorizedResponse('Token required');
+    }
+
+    // Проверяем доступ
+    const accessCheck = hasAccess(token, courseId, 'player');
+    if (!accessCheck.allowed) {
+      return createUnauthorizedResponse(accessCheck.reason);
+    }
   }
 
   // Получаем путь к видео
@@ -36,7 +43,6 @@ export async function handleVideo(request, env, ctx) {
   // Если запрашивается по lessonId, конвертируем в имя файла
   const course = COURSE_DATA[courseId];
   if (course && course.lessons) {
-    const lessonId = fileName.replace('.mp4', '');
     const lessonData = course.lessons[lessonId];
 
     if (lessonData && lessonData.video_file) {
@@ -67,7 +73,10 @@ export async function handleVideo(request, env, ctx) {
         const contentRange = `bytes ${start}-${end || videoSize - 1}/${videoSize}`;
 
         const headers = new Headers();
-        headers.set('Content-Type', video.httpMetadata?.contentType || 'video/mp4');
+        headers.set(
+          'Content-Type',
+          video.httpMetadata?.contentType || 'video/mp4'
+        );
         headers.set('Accept-Ranges', 'bytes');
         headers.set('Content-Range', contentRange);
         headers.set('Content-Length', contentLength.toString());
@@ -96,7 +105,6 @@ export async function handleVideo(request, env, ctx) {
     headers.set('Access-Control-Allow-Origin', '*');
 
     return new Response(video.body, { headers });
-
   } catch (error) {
     console.error('Video streaming error:', error);
     return createNotFoundResponse('Video');
