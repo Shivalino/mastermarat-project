@@ -295,6 +295,12 @@ export async function handlePlayerArchive(request, env, ctx) {
                 height: 60px;
             }
         }
+    
+        /* Скрываем кнопку скачивания и PiP */
+        video::-webkit-media-controls-download-button,
+        video::-webkit-media-controls-picture-in-picture-button {
+            display: none !important;
+        }
     </style>
 </head>
 <body>

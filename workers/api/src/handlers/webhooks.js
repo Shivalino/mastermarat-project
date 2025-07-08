@@ -1,11 +1,22 @@
 ﻿// handlers/webhooks.js
-import { createErrorResponse, createJsonResponse } from '../utils/errors.js';
-import { generateAccessToken } from '../utils/token.js';
+import { createErrorResponse, createCorsResponse } from '../utils/errors.js';
+import { generateSimpleToken } from '../utils/token.js';
+
+// Вспомогательная функция для JSON ответов
+function createJsonResponse(data, status = 200) {
+  return createCorsResponse(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
 
 /**
  * Основной роутер для вебхуков
  */
-export async function handleWebhook(request, env, path) {
+export async function handleWebhooks(request, env, ctx) {
+  const url = new URL(request.url);
+  const path = url.pathname;
+
   // Разбираем путь: /webhook/sendpulse/subscribe
   const parts = path.split('/').filter(Boolean);
 
@@ -13,8 +24,8 @@ export async function handleWebhook(request, env, path) {
     return createErrorResponse('Invalid webhook path', 404);
   }
 
-  const service = parts[1]; // sendpulse, monobank, fondy
-  const event = parts[2] || 'default'; // subscribe, unsubscribe, etc.
+  const service = parts[1]; // sendpulse, monobank
+  const event = parts[2] || 'default'; // subscribe, payment, etc.
 
   try {
     switch (service) {
@@ -22,10 +33,7 @@ export async function handleWebhook(request, env, path) {
         return await handleSendPulseWebhook(request, env, event);
 
       case 'monobank':
-        return await handleMonobankWebhook(request, env);
-
-      case 'fondy':
-        return await handleFondyWebhook(request, env);
+        return await handleMonobankWebhook(request, env, event);
 
       default:
         return createErrorResponse(`Unknown webhook service: ${service}`, 404);
@@ -94,7 +102,7 @@ async function handleSendPulseWebhook(request, env, eventType) {
       return await handleDelivered(data, env);
 
     case 'payment':
-      return await handlePayment(data, env);
+      return await handleSendPulsePayment(data, env);
 
     default:
       console.warn(`Unknown SendPulse event: ${eventType}`);
@@ -123,24 +131,25 @@ async function handleSubscribe(data, env) {
   };
 
   // Сохраняем в KV (если есть)
-  if (env.USERS) {
-    await env.USERS.put(`user:${email}`, JSON.stringify(user));
+  if (env.KV) {
+    await env.KV.put(`user:${email}`, JSON.stringify(user), {
+      expirationTtl: 60 * 60 * 24 * 90 // 90 дней
+    });
   }
 
   // Если это платная подписка, генерируем токен
   if (variables?.payment_confirmed) {
-    const token = await generateAccessToken(email, {
-      subscription_type: user.subscription_type,
-      expires_in_days: 90
-    });
+    const courseId = variables?.course_id || 'course1';
+    const token = generateSimpleToken(email, courseId);
 
-    // Отправляем приветственное письмо с токеном
-    // TODO: Интегрировать с SendPulse API для отправки письма
+    // TODO: Обновить контакт в SendPulse с токеном через API
+    console.log(`Generated token for ${email}: ${token}`);
 
     return createJsonResponse({
       status: 'success',
       message: 'Subscription activated',
-      token // В реальности токен отправляется по email
+      email,
+      token_generated: true // В реальности токен отправляется по email
     });
   }
 
@@ -158,22 +167,20 @@ async function handleUnsubscribe(data, env) {
   const { email } = data;
 
   // Обновляем статус пользователя
-  if (env.USERS) {
+  if (env.KV) {
     const userKey = `user:${email}`;
-    const existingUser = await env.USERS.get(userKey);
+    const existingUser = await env.KV.get(userKey, 'json');
 
     if (existingUser) {
-      const user = JSON.parse(existingUser);
-      user.subscribed = false;
-      user.unsubscribed_at = new Date().toISOString();
-      await env.USERS.put(userKey, JSON.stringify(user));
+      existingUser.subscribed = false;
+      existingUser.unsubscribed_at = new Date().toISOString();
+      await env.KV.put(userKey, JSON.stringify(existingUser));
     }
-  }
 
-  // Деактивируем токены пользователя
-  if (env.TOKENS) {
-    const tokenKey = `token:${email}:*`;
-    // В реальном проекте нужен более сложный механизм отзыва токенов
+    // Инвалидируем токены пользователя
+    // Ищем все токены пользователя (в реальности нужен список токенов)
+    const tokenPattern = `token:${email}:*`;
+    // KV не поддерживает wildcard, нужно хранить список токенов отдельно
   }
 
   return createJsonResponse({
@@ -190,16 +197,15 @@ async function handleHardBounce(data, env) {
   const { email, reason } = data;
 
   // Помечаем email как недействительный
-  if (env.USERS) {
+  if (env.KV) {
     const userKey = `user:${email}`;
-    const existingUser = await env.USERS.get(userKey);
+    const existingUser = await env.KV.get(userKey, 'json');
 
     if (existingUser) {
-      const user = JSON.parse(existingUser);
-      user.email_status = 'invalid';
-      user.bounce_reason = reason;
-      user.bounced_at = new Date().toISOString();
-      await env.USERS.put(userKey, JSON.stringify(user));
+      existingUser.email_status = 'invalid';
+      existingUser.bounce_reason = reason;
+      existingUser.bounced_at = new Date().toISOString();
+      await env.KV.put(userKey, JSON.stringify(existingUser));
     }
   }
 
@@ -216,8 +222,16 @@ async function handleSoftBounce(data, env) {
   const { email, reason } = data;
 
   // Увеличиваем счетчик soft bounces
-  if (env.ANALYTICS) {
-    await env.ANALYTICS.put(`bounce:soft:${email}`, new Date().toISOString());
+  if (env.KV) {
+    const key = `analytics:bounce:soft:${email}`;
+    const count = (await env.KV.get(key, 'json')) || { count: 0 };
+    count.count++;
+    count.last_bounce = new Date().toISOString();
+    count.last_reason = reason;
+
+    await env.KV.put(key, JSON.stringify(count), {
+      expirationTtl: 60 * 60 * 24 * 30 // 30 дней
+    });
   }
 
   return createJsonResponse({
@@ -232,6 +246,8 @@ async function handleSoftBounce(data, env) {
 async function handleSpamReport(data, env) {
   const { email } = data;
 
+  console.error(`SPAM COMPLAINT from ${email}!`);
+
   // Критически важно! Немедленно отписываем
   return await handleUnsubscribe(data, env);
 }
@@ -243,11 +259,11 @@ async function handleEmailOpen(data, env) {
   const { email, campaign_id, timestamp } = data;
 
   // Сохраняем для аналитики
-  if (env.ANALYTICS) {
-    await env.ANALYTICS.put(
-      `open:${campaign_id}:${email}`,
-      timestamp || new Date().toISOString()
-    );
+  if (env.KV) {
+    const key = `analytics:open:${campaign_id}:${email}`;
+    await env.KV.put(key, timestamp || new Date().toISOString(), {
+      expirationTtl: 60 * 60 * 24 * 90 // 90 дней
+    });
   }
 
   return createJsonResponse({
@@ -263,7 +279,7 @@ async function handleLinkClick(data, env) {
   const { email, url, campaign_id, timestamp } = data;
 
   // Сохраняем для аналитики
-  if (env.ANALYTICS) {
+  if (env.KV) {
     const clickData = {
       email,
       url,
@@ -271,10 +287,10 @@ async function handleLinkClick(data, env) {
       timestamp: timestamp || new Date().toISOString()
     };
 
-    await env.ANALYTICS.put(
-      `click:${campaign_id}:${email}:${Date.now()}`,
-      JSON.stringify(clickData)
-    );
+    const key = `analytics:click:${campaign_id}:${email}:${Date.now()}`;
+    await env.KV.put(key, JSON.stringify(clickData), {
+      expirationTtl: 60 * 60 * 24 * 90 // 90 дней
+    });
   }
 
   return createJsonResponse({
@@ -290,14 +306,14 @@ async function handleDelivered(data, env) {
   const { email, campaign_id } = data;
 
   // Обновляем статус доставки
-  if (env.USERS) {
+  if (env.KV) {
     const userKey = `user:${email}`;
-    const existingUser = await env.USERS.get(userKey);
+    const existingUser = await env.KV.get(userKey, 'json');
 
     if (existingUser) {
-      const user = JSON.parse(existingUser);
-      user.last_email_delivered = new Date().toISOString();
-      await env.USERS.put(userKey, JSON.stringify(user));
+      existingUser.last_email_delivered = new Date().toISOString();
+      existingUser.last_campaign_id = campaign_id;
+      await env.KV.put(userKey, JSON.stringify(existingUser));
     }
   }
 
@@ -308,28 +324,31 @@ async function handleDelivered(data, env) {
 }
 
 /**
- * Обработчик платежей (если настроен в SendPulse)
+ * Обработчик платежей через SendPulse
  */
-async function handlePayment(data, env) {
+async function handleSendPulsePayment(data, env) {
   const {
     email,
     amount,
     currency,
     subscription_type,
     payment_id,
-    period_months = 3
+    period_months = 3,
+    variables
   } = data;
 
+  // Определяем курс из переменных или по умолчанию
+  const courseId = variables?.course_id || 'course1';
+
   // Генерируем токен доступа
-  const expiresInDays = period_months * 30;
-  const token = await generateAccessToken(email, {
-    subscription_type,
-    payment_id,
-    expires_in_days: expiresInDays
-  });
+  const token = generateSimpleToken(email, courseId);
+
+  // Рассчитываем дату окончания подписки
+  const expiresAt = new Date();
+  expiresAt.setMonth(expiresAt.getMonth() + period_months);
 
   // Сохраняем информацию о платеже
-  if (env.PAYMENTS) {
+  if (env.KV) {
     const payment = {
       payment_id,
       email,
@@ -337,55 +356,150 @@ async function handlePayment(data, env) {
       currency,
       subscription_type,
       period_months,
+      course_id: courseId,
       token,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      expires_at: expiresAt.toISOString()
     };
 
-    await env.PAYMENTS.put(`payment:${payment_id}`, JSON.stringify(payment));
-  }
+    await env.KV.put(`payment:${payment_id}`, JSON.stringify(payment));
 
-  // Обновляем пользователя
-  if (env.USERS) {
-    const userKey = `user:${email}`;
+    // Обновляем пользователя
     const user = {
       email,
       subscription_type,
       subscription_active: true,
-      subscription_expires: new Date(
-        Date.now() + expiresInDays * 24 * 60 * 60 * 1000
-      ).toISOString(),
+      subscription_expires: expiresAt.toISOString(),
       last_payment_id: payment_id,
-      last_payment_date: new Date().toISOString()
+      last_payment_date: new Date().toISOString(),
+      access_token: token,
+      courses_access: [courseId]
     };
 
-    await env.USERS.put(userKey, JSON.stringify(user));
+    await env.KV.put(`user:${email}`, JSON.stringify(user));
+
+    // Кешируем токен для быстрой проверки
+    await env.KV.put(
+      `token:${token}`,
+      JSON.stringify({
+        email,
+        subscription_type,
+        expires_at: expiresAt.toISOString(),
+        courses: [courseId]
+      }),
+      {
+        expirationTtl: 60 * 60 * 24 // 24 часа
+      }
+    );
   }
 
-  // TODO: Отправить email с токеном через SendPulse API
+  // TODO: Обновить контакт в SendPulse через API с токеном
 
   return createJsonResponse({
     status: 'success',
     message: 'Payment processed',
     payment_id,
-    subscription_activated: true
+    subscription_activated: true,
+    expires_at: expiresAt.toISOString()
   });
 }
 
 /**
- * Заглушки для других платежных систем
+ * Обработчик вебхуков Monobank
+ * Документация: https://api.monobank.ua/docs/acquiring.html
  */
-async function handleMonobankWebhook(request, env) {
-  // TODO: Implement Monobank webhook
-  return createJsonResponse({
-    status: 'success',
-    message: 'Monobank webhook received'
-  });
-}
+async function handleMonobankWebhook(request, env, eventType) {
+  // Проверка метода
+  if (request.method !== 'POST') {
+    return createErrorResponse('Method not allowed', 405);
+  }
 
-async function handleFondyWebhook(request, env) {
-  // TODO: Implement Fondy webhook
+  // Проверка подписи X-Sign (если настроена)
+  const publicKey = env.MONOBANK_PUBLIC_KEY;
+  if (publicKey) {
+    const signature = request.headers.get('X-Sign');
+    if (!signature) {
+      console.warn('Missing Monobank signature');
+      return createErrorResponse('Unauthorized', 401);
+    }
+
+    // TODO: Реализовать проверку подписи по алгоритму Monobank
+    // const isValid = await verifyMonobankSignature(signature, await request.text(), publicKey);
+  }
+
+  // Получаем данные
+  let data;
+  try {
+    data = await request.json();
+  } catch (error) {
+    return createErrorResponse('Invalid JSON', 400);
+  }
+
+  console.log(`Monobank webhook [${eventType}]:`, JSON.stringify(data));
+
+  // Обрабатываем статус платежа
+  const { invoiceId, status, amount, ccy, reference, email } = data;
+
+  if (status === 'success') {
+    // Платеж успешен
+
+    // Определяем тип подписки по сумме (в копейках)
+    let subscription_type = 'basic';
+    let period_months = 3;
+
+    // Примерные суммы в гривнах * 100 (копейки)
+    if (amount >= 500000) {
+      // 5000 грн и выше
+      subscription_type = 'vip';
+    } else if (amount >= 200000) {
+      // 2000 грн и выше
+      subscription_type = 'standard';
+    }
+
+    // Генерируем токен
+    const courseId = 'course1'; // Можно передавать в reference
+    const token = generateSimpleToken(email || reference, courseId);
+
+    // Сохраняем платеж
+    if (env.KV) {
+      const payment = {
+        payment_id: invoiceId,
+        email: email || reference,
+        amount: amount / 100, // Конвертируем в гривны
+        currency: ccy,
+        subscription_type,
+        period_months,
+        token,
+        created_at: new Date().toISOString(),
+        source: 'monobank'
+      };
+
+      await env.KV.put(`payment:mono:${invoiceId}`, JSON.stringify(payment));
+
+      // TODO: Найти email пользователя по reference и активировать подписку
+      // TODO: Отправить уведомление через SendPulse API
+    }
+
+    return createJsonResponse({
+      status: 'success',
+      message: 'Payment confirmed',
+      invoiceId
+    });
+  } else if (status === 'failure' || status === 'reversed') {
+    // Платеж отклонен или отменен
+    console.error(`Monobank payment failed: ${invoiceId}, status: ${status}`);
+
+    return createJsonResponse({
+      status: 'success',
+      message: 'Payment failure acknowledged',
+      invoiceId
+    });
+  }
+
+  // Другие статусы (processing, hold, etc)
   return createJsonResponse({
     status: 'success',
-    message: 'Fondy webhook received'
+    message: `Payment status ${status} received`,
+    invoiceId
   });
 }

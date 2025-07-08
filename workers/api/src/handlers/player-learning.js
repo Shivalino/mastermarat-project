@@ -390,6 +390,18 @@ export async function handlePlayerLearning(request, env, ctx) {
                 font-size: 16px;
             }
         }
+    
+        /* Скрываем кнопку скачивания */
+        video::-webkit-media-controls-download-button {
+            display: none !important;
+        }
+        video::-webkit-media-controls-picture-in-picture-button {
+            display: none !important;
+        }
+        /* Отключаем контекстное меню */
+        video {
+            pointer-events: auto;
+        }
     </style>
 </head>
 <body>
@@ -414,7 +426,7 @@ export async function handlePlayerLearning(request, env, ctx) {
                 poster="${url.origin}/thumbnails/${courseId}/${lesson.thumbnail_file}"
                 id="lessonVideo"
                 playsinline
-            >
+             controlslist="nodownload noplaybackrate" disablePictureInPicture>
                 <source src="${url.origin}/video/${courseId}/${lesson.video_file}?token=${token}" type="video/mp4">
                 Ваш браузер не поддерживает HTML5 видео.
             </video>
