@@ -8,7 +8,7 @@ import { handleThumbnails } from './handlers/thumbnails.js';
 import { handleVideo } from './handlers/video.js';
 import { handlePlayerLearning } from './handlers/player-learning.js';
 import { handlePlayerArchive } from './handlers/player-archive.js';
-import { handleWebhook } from './handlers/webhooks.js';
+import { handleWebhooks } from './handlers/webhooks.js';
 import { handleTestPage } from './handlers/test.js';
 
 export default {
@@ -88,3 +88,4 @@ export default {
     }
   }
 };
+

@@ -1,6 +1,6 @@
 ﻿# Working Files with Content - MasterMarat Project
 
-*Generated: 2025-07-05 18:35*
+*Generated: 2025-07-08 09:46*
 
 **Total: 69 files**
 
@@ -359,7 +359,7 @@ export function createVideoPlayer(videoUrl, posterUrl) {
 
 ---
 
-### `workers/api/src/worker-new.js` (2.12 KB)
+### `workers/api/src/worker-new.js` (2.99 KB)
 
 ```javascript
 // worker-new.js - только роутинг
@@ -372,62 +372,83 @@ import { handleThumbnails } from './handlers/thumbnails.js';
 import { handleVideo } from './handlers/video.js';
 import { handlePlayerLearning } from './handlers/player-learning.js';
 import { handlePlayerArchive } from './handlers/player-archive.js';
-import { handleWebhooks } from './handlers/webhooks.js';
+import { handleWebhook } from './handlers/webhooks.js';
 import { handleTestPage } from './handlers/test.js';
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const pathname = url.pathname;
+    const method = request.method;
 
     // CORS preflight
-    if (request.method === 'OPTIONS') {
+    if (method === 'OPTIONS') {
       return new Response(null, { headers: CORS_HEADERS });
     }
 
     try {
-      // Роутинг запросов
-      if (url.pathname === '/') {
+      // Главная страница - документация API
+      if (pathname === '/') {
         return await handleApiDocumentation(request, env, ctx);
       }
 
-      // НОВЫЙ: Тестовая страница
-      if (url.pathname === '/test') {
+      // Тестовая страница
+      if (pathname === '/test') {
         return await handleTestPage(request, env, ctx);
       }
 
-      if (url.pathname.startsWith('/thumbnails/')) {
+      // Thumbnails (превью видео)
+      if (pathname.startsWith('/thumbnails/')) {
         return await handleThumbnails(request, env, ctx);
       }
 
-      if (url.pathname.startsWith('/video/')) {
+      // Video streaming
+      if (pathname.startsWith('/video/')) {
         return await handleVideo(request, env, ctx);
       }
 
-      if (url.pathname.startsWith('/player/')) {
+      // Player для обучения (learning mode)
+      if (pathname.startsWith('/player/')) {
         return await handlePlayerLearning(request, env, ctx);
       }
 
-      if (url.pathname.startsWith('/archive/')) {
+      // Player для архива (archive mode)
+      if (pathname.startsWith('/archive/')) {
         return await handlePlayerArchive(request, env, ctx);
       }
 
-      if (url.pathname === '/webhook/purchase' && request.method === 'POST') {
-        return await handleWebhooks(request, env, ctx);
+      // Webhooks - универсальный обработчик
+      // Поддерживает пути вида:
+      // /webhook/sendpulse/subscribe
+      // /webhook/sendpulse/payment
+      // /webhook/monobank
+      // /webhook/fondy
+      if (pathname.startsWith('/webhook/')) {
+        return await handleWebhook(request, env, pathname);
       }
 
       // 404 для неизвестных маршрутов
       return createErrorResponse('Endpoint not found', 404, {
-        path: url.pathname,
-        method: request.method
+        path: pathname,
+        method: method,
+        available_endpoints: [
+          'GET /',
+          'GET /test',
+          'GET /thumbnails/{courseId}/{filename}',
+          'GET /video/{courseId}/{filename}',
+          'GET /player/{courseId}/{lessonId}',
+          'GET /archive/{courseId}/{lessonId}',
+          'POST /webhook/sendpulse/{event}',
+          'POST /webhook/monobank',
+          'POST /webhook/fondy'
+        ]
       });
-
     } catch (error) {
       console.error('Worker error:', error);
-      return createErrorResponse(
-        'Internal server error',
-        500,
-        { message: error.message }
-      );
+      return createErrorResponse('Internal server error', 500, {
+        message: error.message,
+        stack: env.ENVIRONMENT === 'development' ? error.stack : undefined
+      });
     }
   }
 };
@@ -487,7 +508,7 @@ export async function handleApiDocumentation(request, env, ctx) {
 
 ---
 
-### `workers/api/src/handlers/player-archive.js` (9.88 KB)
+### `workers/api/src/handlers/player-archive.js` (10.13 KB)
 
 ```javascript
 // handlers/player-archive.js
@@ -787,6 +808,12 @@ export async function handlePlayerArchive(request, env, ctx) {
                 height: 60px;
             }
         }
+    
+        /* Скрываем кнопку скачивания и PiP */
+        video::-webkit-media-controls-download-button,
+        video::-webkit-media-controls-picture-in-picture-button {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -845,11 +872,12 @@ export async function handlePlayerArchive(request, env, ctx) {
     }
   });
 }
+
 ```
 
 ---
 
-### `workers/api/src/handlers/player-learning.js` (17.67 KB)
+### `workers/api/src/handlers/player-learning.js` (18.15 KB)
 
 ```javascript
 // handlers/player-learning.js
@@ -1244,6 +1272,18 @@ export async function handlePlayerLearning(request, env, ctx) {
                 font-size: 16px;
             }
         }
+    
+        /* Скрываем кнопку скачивания */
+        video::-webkit-media-controls-download-button {
+            display: none !important;
+        }
+        video::-webkit-media-controls-picture-in-picture-button {
+            display: none !important;
+        }
+        /* Отключаем контекстное меню */
+        video {
+            pointer-events: auto;
+        }
     </style>
 </head>
 <body>
@@ -1268,7 +1308,7 @@ export async function handlePlayerLearning(request, env, ctx) {
                 poster="${url.origin}/thumbnails/${courseId}/${lesson.thumbnail_file}"
                 id="lessonVideo"
                 playsinline
-            >
+             controlslist="nodownload noplaybackrate" disablePictureInPicture>
                 <source src="${url.origin}/video/${courseId}/${lesson.video_file}?token=${token}" type="video/mp4">
                 Ваш браузер не поддерживает HTML5 видео.
             </video>
@@ -1408,6 +1448,7 @@ export async function handlePlayerLearning(request, env, ctx) {
     }
   });
 }
+
 ```
 
 ---
@@ -1656,48 +1697,513 @@ export async function handleVideo(request, env, ctx) {
 
 ---
 
-### `workers/api/src/handlers/webhooks.js` (1.25 KB)
+### `workers/api/src/handlers/webhooks.js` (14.16 KB)
 
 ```javascript
 // handlers/webhooks.js
-import { createCorsResponse } from '../utils/cors.js';
-import { createBadRequestResponse } from '../utils/errors.js';
+import { createErrorResponse, createCorsResponse } from '../utils/errors.js';
 import { generateSimpleToken } from '../utils/token.js';
 
+// Вспомогательная функция для JSON ответов
+function createJsonResponse(data, status = 200) {
+  return createCorsResponse(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
+/**
+ * Основной роутер для вебхуков
+ */
 export async function handleWebhooks(request, env, ctx) {
+  const url = new URL(request.url);
+  const path = url.pathname;
+
+  // Разбираем путь: /webhook/sendpulse/subscribe
+  const parts = path.split('/').filter(Boolean);
+
+  if (parts.length < 2) {
+    return createErrorResponse('Invalid webhook path', 404);
+  }
+
+  const service = parts[1]; // sendpulse, monobank
+  const event = parts[2] || 'default'; // subscribe, payment, etc.
+
   try {
-    const webhook = await request.json();
+    switch (service) {
+      case 'sendpulse':
+        return await handleSendPulseWebhook(request, env, event);
 
-    // Генерируем токен для пользователя
-    const userToken = generateSimpleToken(
-      webhook.email || 'test@example.com',
-      webhook.course_id || 'course1'
-    );
+      case 'monobank':
+        return await handleMonobankWebhook(request, env, event);
 
-    // TODO: Обновить контакт в SendPulse через API
-    // await updateSendPulseContact(webhook.email, {
-    //   access_token: userToken,
-    //   purchase_date: new Date().toISOString(),
-    //   subscription_type: webhook.subscription_type
-    // });
+      default:
+        return createErrorResponse(`Unknown webhook service: ${service}`, 404);
+    }
+  } catch (error) {
+    console.error(`Webhook error [${service}/${event}]:`, error);
+    return createErrorResponse('Webhook processing failed', 500);
+  }
+}
 
-    return createCorsResponse(
-      JSON.stringify({
+/**
+ * Обработчик вебхуков SendPulse
+ */
+async function handleSendPulseWebhook(request, env, eventType) {
+  // Проверка метода
+  if (request.method !== 'POST') {
+    return createErrorResponse('Method not allowed', 405);
+  }
+
+  // Проверка секретного ключа (если настроен)
+  const secret = env.SENDPULSE_WEBHOOK_SECRET;
+  if (secret) {
+    const signature = request.headers.get('X-Webhook-Signature');
+    if (!signature || signature !== secret) {
+      console.warn('Invalid webhook signature');
+      return createErrorResponse('Unauthorized', 401);
+    }
+  }
+
+  // Получаем данные
+  let data;
+  try {
+    data = await request.json();
+  } catch (error) {
+    return createErrorResponse('Invalid JSON', 400);
+  }
+
+  // Логируем событие
+  console.log(`SendPulse webhook [${eventType}]:`, JSON.stringify(data));
+
+  // Обрабатываем разные типы событий
+  switch (eventType) {
+    case 'subscribe':
+      return await handleSubscribe(data, env);
+
+    case 'unsubscribe':
+    case 'user-unsubscribe':
+      return await handleUnsubscribe(data, env);
+
+    case 'hard-bounce':
+      return await handleHardBounce(data, env);
+
+    case 'soft-bounce':
+      return await handleSoftBounce(data, env);
+
+    case 'spam':
+      return await handleSpamReport(data, env);
+
+    case 'open':
+      return await handleEmailOpen(data, env);
+
+    case 'click':
+      return await handleLinkClick(data, env);
+
+    case 'delivered':
+      return await handleDelivered(data, env);
+
+    case 'payment':
+      return await handleSendPulsePayment(data, env);
+
+    default:
+      console.warn(`Unknown SendPulse event: ${eventType}`);
+      return createJsonResponse({
         status: 'success',
-        message: 'Webhook processed successfully',
-        user_token: userToken,
-        received_data: webhook,
-        note: 'Token will be sent in first course email'
+        message: `Event ${eventType} received but not processed`
+      });
+  }
+}
+
+/**
+ * Обработчик новой подписки
+ */
+async function handleSubscribe(data, env) {
+  const { email, name, phone, variables } = data;
+
+  // Создаем или обновляем пользователя
+  const user = {
+    email,
+    name: name || variables?.name || 'Unknown',
+    phone: phone || variables?.phone || '',
+    subscribed: true,
+    subscribed_at: new Date().toISOString(),
+    subscription_type: variables?.subscription_type || 'basic',
+    source: 'sendpulse_webhook'
+  };
+
+  // Сохраняем в KV (если есть)
+  if (env.KV) {
+    await env.KV.put(`user:${email}`, JSON.stringify(user), {
+      expirationTtl: 60 * 60 * 24 * 90 // 90 дней
+    });
+  }
+
+  // Если это платная подписка, генерируем токен
+  if (variables?.payment_confirmed) {
+    const courseId = variables?.course_id || 'course1';
+    const token = generateSimpleToken(email, courseId);
+
+    // TODO: Обновить контакт в SendPulse с токеном через API
+    console.log(`Generated token for ${email}: ${token}`);
+
+    return createJsonResponse({
+      status: 'success',
+      message: 'Subscription activated',
+      email,
+      token_generated: true // В реальности токен отправляется по email
+    });
+  }
+
+  return createJsonResponse({
+    status: 'success',
+    message: 'Subscriber added',
+    email
+  });
+}
+
+/**
+ * Обработчик отписки
+ */
+async function handleUnsubscribe(data, env) {
+  const { email } = data;
+
+  // Обновляем статус пользователя
+  if (env.KV) {
+    const userKey = `user:${email}`;
+    const existingUser = await env.KV.get(userKey, 'json');
+
+    if (existingUser) {
+      existingUser.subscribed = false;
+      existingUser.unsubscribed_at = new Date().toISOString();
+      await env.KV.put(userKey, JSON.stringify(existingUser));
+    }
+
+    // Инвалидируем токены пользователя
+    // Ищем все токены пользователя (в реальности нужен список токенов)
+    const tokenPattern = `token:${email}:*`;
+    // KV не поддерживает wildcard, нужно хранить список токенов отдельно
+  }
+
+  return createJsonResponse({
+    status: 'success',
+    message: 'User unsubscribed',
+    email
+  });
+}
+
+/**
+ * Обработчик жестких отказов (email не существует)
+ */
+async function handleHardBounce(data, env) {
+  const { email, reason } = data;
+
+  // Помечаем email как недействительный
+  if (env.KV) {
+    const userKey = `user:${email}`;
+    const existingUser = await env.KV.get(userKey, 'json');
+
+    if (existingUser) {
+      existingUser.email_status = 'invalid';
+      existingUser.bounce_reason = reason;
+      existingUser.bounced_at = new Date().toISOString();
+      await env.KV.put(userKey, JSON.stringify(existingUser));
+    }
+  }
+
+  return createJsonResponse({
+    status: 'success',
+    message: 'Hard bounce processed'
+  });
+}
+
+/**
+ * Обработчик мягких отказов (временные проблемы)
+ */
+async function handleSoftBounce(data, env) {
+  const { email, reason } = data;
+
+  // Увеличиваем счетчик soft bounces
+  if (env.KV) {
+    const key = `analytics:bounce:soft:${email}`;
+    const count = (await env.KV.get(key, 'json')) || { count: 0 };
+    count.count++;
+    count.last_bounce = new Date().toISOString();
+    count.last_reason = reason;
+
+    await env.KV.put(key, JSON.stringify(count), {
+      expirationTtl: 60 * 60 * 24 * 30 // 30 дней
+    });
+  }
+
+  return createJsonResponse({
+    status: 'success',
+    message: 'Soft bounce logged'
+  });
+}
+
+/**
+ * Обработчик жалоб на спам
+ */
+async function handleSpamReport(data, env) {
+  const { email } = data;
+
+  console.error(`SPAM COMPLAINT from ${email}!`);
+
+  // Критически важно! Немедленно отписываем
+  return await handleUnsubscribe(data, env);
+}
+
+/**
+ * Обработчик открытия письма
+ */
+async function handleEmailOpen(data, env) {
+  const { email, campaign_id, timestamp } = data;
+
+  // Сохраняем для аналитики
+  if (env.KV) {
+    const key = `analytics:open:${campaign_id}:${email}`;
+    await env.KV.put(key, timestamp || new Date().toISOString(), {
+      expirationTtl: 60 * 60 * 24 * 90 // 90 дней
+    });
+  }
+
+  return createJsonResponse({
+    status: 'success',
+    message: 'Open tracked'
+  });
+}
+
+/**
+ * Обработчик клика по ссылке
+ */
+async function handleLinkClick(data, env) {
+  const { email, url, campaign_id, timestamp } = data;
+
+  // Сохраняем для аналитики
+  if (env.KV) {
+    const clickData = {
+      email,
+      url,
+      campaign_id,
+      timestamp: timestamp || new Date().toISOString()
+    };
+
+    const key = `analytics:click:${campaign_id}:${email}:${Date.now()}`;
+    await env.KV.put(key, JSON.stringify(clickData), {
+      expirationTtl: 60 * 60 * 24 * 90 // 90 дней
+    });
+  }
+
+  return createJsonResponse({
+    status: 'success',
+    message: 'Click tracked'
+  });
+}
+
+/**
+ * Обработчик успешной доставки
+ */
+async function handleDelivered(data, env) {
+  const { email, campaign_id } = data;
+
+  // Обновляем статус доставки
+  if (env.KV) {
+    const userKey = `user:${email}`;
+    const existingUser = await env.KV.get(userKey, 'json');
+
+    if (existingUser) {
+      existingUser.last_email_delivered = new Date().toISOString();
+      existingUser.last_campaign_id = campaign_id;
+      await env.KV.put(userKey, JSON.stringify(existingUser));
+    }
+  }
+
+  return createJsonResponse({
+    status: 'success',
+    message: 'Delivery confirmed'
+  });
+}
+
+/**
+ * Обработчик платежей через SendPulse
+ */
+async function handleSendPulsePayment(data, env) {
+  const {
+    email,
+    amount,
+    currency,
+    subscription_type,
+    payment_id,
+    period_months = 3,
+    variables
+  } = data;
+
+  // Определяем курс из переменных или по умолчанию
+  const courseId = variables?.course_id || 'course1';
+
+  // Генерируем токен доступа
+  const token = generateSimpleToken(email, courseId);
+
+  // Рассчитываем дату окончания подписки
+  const expiresAt = new Date();
+  expiresAt.setMonth(expiresAt.getMonth() + period_months);
+
+  // Сохраняем информацию о платеже
+  if (env.KV) {
+    const payment = {
+      payment_id,
+      email,
+      amount,
+      currency,
+      subscription_type,
+      period_months,
+      course_id: courseId,
+      token,
+      created_at: new Date().toISOString(),
+      expires_at: expiresAt.toISOString()
+    };
+
+    await env.KV.put(`payment:${payment_id}`, JSON.stringify(payment));
+
+    // Обновляем пользователя
+    const user = {
+      email,
+      subscription_type,
+      subscription_active: true,
+      subscription_expires: expiresAt.toISOString(),
+      last_payment_id: payment_id,
+      last_payment_date: new Date().toISOString(),
+      access_token: token,
+      courses_access: [courseId]
+    };
+
+    await env.KV.put(`user:${email}`, JSON.stringify(user));
+
+    // Кешируем токен для быстрой проверки
+    await env.KV.put(
+      `token:${token}`,
+      JSON.stringify({
+        email,
+        subscription_type,
+        expires_at: expiresAt.toISOString(),
+        courses: [courseId]
       }),
       {
-        headers: { 'Content-Type': 'application/json' }
+        expirationTtl: 60 * 60 * 24 // 24 часа
       }
     );
-
-  } catch (error) {
-    console.error('Webhook processing error:', error);
-    return createBadRequestResponse('Invalid webhook data');
   }
+
+  // TODO: Обновить контакт в SendPulse через API с токеном
+
+  return createJsonResponse({
+    status: 'success',
+    message: 'Payment processed',
+    payment_id,
+    subscription_activated: true,
+    expires_at: expiresAt.toISOString()
+  });
+}
+
+/**
+ * Обработчик вебхуков Monobank
+ * Документация: https://api.monobank.ua/docs/acquiring.html
+ */
+async function handleMonobankWebhook(request, env, eventType) {
+  // Проверка метода
+  if (request.method !== 'POST') {
+    return createErrorResponse('Method not allowed', 405);
+  }
+
+  // Проверка подписи X-Sign (если настроена)
+  const publicKey = env.MONOBANK_PUBLIC_KEY;
+  if (publicKey) {
+    const signature = request.headers.get('X-Sign');
+    if (!signature) {
+      console.warn('Missing Monobank signature');
+      return createErrorResponse('Unauthorized', 401);
+    }
+
+    // TODO: Реализовать проверку подписи по алгоритму Monobank
+    // const isValid = await verifyMonobankSignature(signature, await request.text(), publicKey);
+  }
+
+  // Получаем данные
+  let data;
+  try {
+    data = await request.json();
+  } catch (error) {
+    return createErrorResponse('Invalid JSON', 400);
+  }
+
+  console.log(`Monobank webhook [${eventType}]:`, JSON.stringify(data));
+
+  // Обрабатываем статус платежа
+  const { invoiceId, status, amount, ccy, reference, email } = data;
+
+  if (status === 'success') {
+    // Платеж успешен
+
+    // Определяем тип подписки по сумме (в копейках)
+    let subscription_type = 'basic';
+    let period_months = 3;
+
+    // Примерные суммы в гривнах * 100 (копейки)
+    if (amount >= 500000) {
+      // 5000 грн и выше
+      subscription_type = 'vip';
+    } else if (amount >= 200000) {
+      // 2000 грн и выше
+      subscription_type = 'standard';
+    }
+
+    // Генерируем токен
+    const courseId = 'course1'; // Можно передавать в reference
+    const token = generateSimpleToken(email || reference, courseId);
+
+    // Сохраняем платеж
+    if (env.KV) {
+      const payment = {
+        payment_id: invoiceId,
+        email: email || reference,
+        amount: amount / 100, // Конвертируем в гривны
+        currency: ccy,
+        subscription_type,
+        period_months,
+        token,
+        created_at: new Date().toISOString(),
+        source: 'monobank'
+      };
+
+      await env.KV.put(`payment:mono:${invoiceId}`, JSON.stringify(payment));
+
+      // TODO: Найти email пользователя по reference и активировать подписку
+      // TODO: Отправить уведомление через SendPulse API
+    }
+
+    return createJsonResponse({
+      status: 'success',
+      message: 'Payment confirmed',
+      invoiceId
+    });
+  } else if (status === 'failure' || status === 'reversed') {
+    // Платеж отклонен или отменен
+    console.error(`Monobank payment failed: ${invoiceId}, status: ${status}`);
+
+    return createJsonResponse({
+      status: 'success',
+      message: 'Payment failure acknowledged',
+      invoiceId
+    });
+  }
+
+  // Другие статусы (processing, hold, etc)
+  return createJsonResponse({
+    status: 'success',
+    message: `Payment status ${status} received`,
+    invoiceId
+  });
 }
 
 ```
@@ -13160,12 +13666,12 @@ JSON. Например: записано в студии 15.06.2024, нужно 
 
 ---
 
-### `working-files-content.md` (1038.95 KB)
+### `working-files-content.md` (1047.66 KB)
 
 ```markdown
 # Working Files with Content - MasterMarat Project
 
-*Generated: 2025-07-05 18:24*
+*Generated: 2025-07-05 18:35*
 
 **Total: 69 files**
 
@@ -24280,51 +24786,321 @@ function generateSimpleToken(email) {
 
 ---
 
-### `scripts/upload_content_to_r2.js` (1.27 KB)
+### `scripts/upload_content_to_r2.js` (8.45 KB)
 
 ```javascript
+/**
+ * upload_content_to_r2.js
+ * РЎРєСЂРёРїС‚ РґР»СЏ Р·Р°РіСЂСѓР·РєРё РєРѕРЅС‚РµРЅС‚Р° РєСѓСЂСЃРѕРІ РІ Cloudflare R2
+ *
+ * РСЃРїРѕР»СЊР·РѕРІР°РЅРёРµ:
+ * node scripts/upload_content_to_r2.js [--env dev|prod] [--course course1] [--dry-run]
+ */
+
 const { execSync } = require('child_process');
+const fs = require('fs');
 const path = require('path');
 
-const R2_BUCKET_NAME = 'mastermarat-videos';
-const BASE_UPLOAD_DIR = path.join(__dirname, '..', 'temp_upload', 'content');
+// РљРѕРЅС„РёРіСѓСЂР°С†РёСЏ
+const CONFIG = {
+  R2_BUCKET_NAME: 'mastermarat-videos',
+  BASE_UPLOAD_DIR: path.join(__dirname, '..', 'temp_upload', 'content'),
+  SUPPORTED_FILE_TYPES: ['.json', '.mp4', '.jpg', '.jpeg', '.png'],
+  MAX_PARALLEL_UPLOADS: 3
+};
 
-const COURSE_DATA = {
-  "course1": {
-    lessons: {
-      "week1_lesson1": {},
-      "week1_lesson2": {},
-      "week2_lesson1": {},
-      "week2_lesson2": {},
-      "week3_lesson1": {},
-      "week3_lesson2": {},
-      "week4_lesson1": {},
-      "week4_lesson2": {}
-    }
+// РЎС‚СЂСѓРєС‚СѓСЂР° РєСѓСЂСЃРѕРІ - РѕР±РЅРѕРІР»СЏРµС‚СЃСЏ РІСЂСѓС‡РЅСѓСЋ РїСЂРё РґРѕР±Р°РІР»РµРЅРёРё РЅРѕРІС‹С… СѓСЂРѕРєРѕРІ
+const COURSE_STRUCTURE = {
+  course01: {
+    name: 'РњРµС…Р°РЅРёРєР° Р·РґРѕСЂРѕРІСЊСЏ',
+    lessons: [
+      'lesson001' // РџРѕРєР° С‚РѕР»СЊРєРѕ РѕРґРёРЅ СѓСЂРѕРє Р·Р°РіСЂСѓР¶РµРЅ
+    ]
+  },
+  course02: {
+    name: 'РљСѓСЂСЃ 2',
+    lessons: [] // РџРѕРєР° РїСѓСЃС‚Рѕ
+  },
+  course03: {
+    name: 'РљСѓСЂСЃ 3',
+    lessons: []
+  },
+  course04: {
+    name: 'РљСѓСЂСЃ 4',
+    lessons: []
+  },
+  course05: {
+    name: 'РљСѓСЂСЃ 5',
+    lessons: []
+  },
+  course06: {
+    name: 'РљСѓСЂСЃ 6',
+    lessons: []
+  },
+  course07: {
+    name: 'РљСѓСЂСЃ 7',
+    lessons: []
+  },
+  course08: {
+    name: 'РљСѓСЂСЃ 8',
+    lessons: []
   }
 };
 
+// РџР°СЂСЃРёРЅРі Р°СЂРіСѓРјРµРЅС‚РѕРІ РєРѕРјР°РЅРґРЅРѕР№ СЃС‚СЂРѕРєРё
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const options = {
+    env: 'dev',
+    course: null,
+    dryRun: false,
+    verbose: false
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    switch (args[i]) {
+      case '--env':
+        options.env = args[++i] || 'dev';
+        break;
+      case '--course':
+        options.course = args[++i];
+        break;
+      case '--dry-run':
+        options.dryRun = true;
+        break;
+      case '--verbose':
+        options.verbose = true;
+        break;
+      case '--help':
+        showHelp();
+        process.exit(0);
+    }
+  }
+
+  return options;
+}
+
+// РџРѕРєР°Р·Р°С‚СЊ СЃРїСЂР°РІРєСѓ
+function showHelp() {
+  console.log(`
+рџ“¤ Upload Content to R2 - MasterMarat Project
+
+Usage: node scripts/upload_content_to_r2.js [options]
+
+Options:
+  --env <env>      Environment (dev|prod), default: dev
+  --course <id>    Upload specific course only
+  --dry-run        Show what would be uploaded without uploading
+  --verbose        Show detailed output
+  --help           Show this help
+
+Examples:
+  node scripts/upload_content_to_r2.js --env dev
+  node scripts/upload_content_to_r2.js --course course1 --dry-run
+  node scripts/upload_content_to_r2.js --env prod --verbose
+  `);
+}
+
+// РџСЂРѕРІРµСЂРєР° СЃСѓС‰РµСЃС‚РІРѕРІР°РЅРёСЏ С„Р°Р№Р»Р°
+function fileExists(filePath) {
+  try {
+    return fs.existsSync(filePath);
+  } catch (error) {
+    return false;
+  }
+}
+
+// РџРѕР»СѓС‡РёС‚СЊ СЂР°Р·РјРµСЂ С„Р°Р№Р»Р°
+function getFileSize(filePath) {
+  try {
+    const stats = fs.statSync(filePath);
+    return (stats.size / 1024 / 1024).toFixed(2) + ' MB';
+  } catch (error) {
+    return 'Unknown';
+  }
+}
+
+// Р—Р°РіСЂСѓР·РёС‚СЊ РѕРґРёРЅ С„Р°Р№Р» РІ R2
+async function uploadFileToR2(localPath, r2Path, options) {
+  const { env, dryRun, verbose } = options;
+
+  if (!fileExists(localPath)) {
+    console.error(`вќЊ File not found: ${localPath}`);
+    return false;
+  }
+
+  const fileSize = getFileSize(localPath);
+  console.log(`рџ“¦ Uploading: ${r2Path} (${fileSize})`);
+
+  if (dryRun) {
+    console.log(`   [DRY RUN] Would upload: ${localPath} в†’ ${r2Path}`);
+    return true;
+  }
+
+  try {
+    const envFlag = env === 'prod' ? '' : `--env ${env}`;
+    const command = `wrangler r2 object put "${CONFIG.R2_BUCKET_NAME}/${r2Path}" --file="${localPath.replace(/\\/g, '/')}" ${envFlag}`;
+
+    if (verbose) {
+      console.log(`   Command: ${command}`);
+    }
+
+    execSync(command, { stdio: verbose ? 'inherit' : 'pipe' });
+    console.log(`   вњ… Success: ${r2Path}`);
+    return true;
+  } catch (error) {
+    console.error(`   вќЊ Failed: ${error.message}`);
+    return false;
+  }
+}
+
+// РќР°Р№С‚Рё РІСЃРµ С„Р°Р№Р»С‹ РґР»СЏ Р·Р°РіСЂСѓР·РєРё
+function findFilesToUpload(courseId, lessonId) {
+  const files = [];
+  const courseDir = path.join(CONFIG.BASE_UPLOAD_DIR, courseId);
+
+  // JSON С„Р°Р№Р» СѓСЂРѕРєР° (lesson001.json)
+  const jsonFile = path.join(courseDir, `${lessonId}.json`);
+  if (fileExists(jsonFile)) {
+    files.push({
+      local: jsonFile,
+      r2: `content/${courseId}/${lessonId}.json`,
+      type: 'metadata'
+    });
+  }
+
+  // Р’РёРґРµРѕ С„Р°Р№Р» (lesson001.mp4)
+  const videoFile = path.join(courseDir, `${lessonId}.mp4`);
+  if (fileExists(videoFile)) {
+    files.push({
+      local: videoFile,
+      r2: `videos/${courseId}/${lessonId}.mp4`,
+      type: 'video'
+    });
+  }
+
+  // Thumbnail (lesson001.jpg)
+  const thumbFile = path.join(courseDir, `${lessonId}.jpg`);
+  if (fileExists(thumbFile)) {
+    files.push({
+      local: thumbFile,
+      r2: `thumbnails/${courseId}/${lessonId}.jpg`,
+      type: 'thumbnail'
+    });
+  }
+
+  // РђР»СЊС‚РµСЂРЅР°С‚РёРІРЅС‹Р№ thumbnail СЃ _thumb
+  const thumbAltFile = path.join(courseDir, `${lessonId}_thumb.jpg`);
+  if (!fileExists(thumbFile) && fileExists(thumbAltFile)) {
+    files.push({
+      local: thumbAltFile,
+      r2: `thumbnails/${courseId}/${lessonId}.jpg`,
+      type: 'thumbnail'
+    });
+  }
+
+  return files;
+}
+
+// РћСЃРЅРѕРІРЅР°СЏ С„СѓРЅРєС†РёСЏ Р·Р°РіСЂСѓР·РєРё
 async function uploadContentToR2() {
-  console.log('Starting R2 content upload...');
+  const options = parseArgs();
 
-  for (const courseId in COURSE_DATA) {
-    for (const lessonId in COURSE_DATA[courseId].lessons) {
-      const localFilePath = path.join(BASE_UPLOAD_DIR, courseId, `${lessonId}.json`);
-      const r2ObjectKey = `content/${courseId}/${lessonId}.json`;
+  console.log('рџљЂ MasterMarat R2 Content Uploader');
+  console.log('==================================');
+  console.log(`Environment: ${options.env}`);
+  console.log(`Bucket: ${CONFIG.R2_BUCKET_NAME}`);
+  console.log(`Mode: ${options.dryRun ? 'DRY RUN' : 'LIVE'}`);
+  console.log('');
 
-      try {
-        console.log(`Uploading ${localFilePath} to ${R2_BUCKET_NAME}/${r2ObjectKey}...`);
-        execSync(`wrangler r2 object put ${R2_BUCKET_NAME}/${r2ObjectKey} --file="${localFilePath.replace(/\\/g, '/')}" --remote`);
-        console.log(`Successfully uploaded ${r2ObjectKey}`);
-      } catch (error) {
-        console.error(`Failed to upload ${r2ObjectKey}:`, error.message);
+  // РћРїСЂРµРґРµР»СЏРµРј РєР°РєРёРµ РєСѓСЂСЃС‹ Р·Р°РіСЂСѓР¶Р°С‚СЊ
+  const coursesToUpload = options.course
+    ? { [options.course]: COURSE_STRUCTURE[options.course] }
+    : COURSE_STRUCTURE;
+
+  if (options.course && !COURSE_STRUCTURE[options.course]) {
+    console.error(`вќЊ Course "${options.course}" not found!`);
+    console.log(
+      `Available courses: ${Object.keys(COURSE_STRUCTURE).join(', ')}`
+    );
+    process.exit(1);
+  }
+
+  let totalFiles = 0;
+  let successCount = 0;
+  const startTime = Date.now();
+
+  // Р—Р°РіСЂСѓР¶Р°РµРј РїРѕ РєСѓСЂСЃР°Рј
+  for (const [courseId, courseData] of Object.entries(coursesToUpload)) {
+    console.log(`\nрџ“љ Course: ${courseId} - ${courseData.name}`);
+    console.log('в”Ђ'.repeat(50));
+
+    for (const lessonId of courseData.lessons) {
+      console.log(`\nрџ“– Lesson: ${lessonId}`);
+
+      const files = findFilesToUpload(courseId, lessonId);
+
+      if (files.length === 0) {
+        console.log(`   вљ пёЏ  No files found for this lesson`);
+        continue;
+      }
+
+      for (const file of files) {
+        totalFiles++;
+        const success = await uploadFileToR2(file.local, file.r2, options);
+        if (success) successCount++;
       }
     }
   }
-  console.log('R2 content upload finished.');
+
+  // РС‚РѕРіРѕРІР°СЏ СЃС‚Р°С‚РёСЃС‚РёРєР°
+  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log('\n' + '='.repeat(50));
+  console.log('рџ“Љ Upload Summary:');
+  console.log(`   Total files: ${totalFiles}`);
+  console.log(`   Successful: ${successCount}`);
+  console.log(`   Failed: ${totalFiles - successCount}`);
+  console.log(`   Duration: ${duration}s`);
+  console.log(
+    `   Status: ${successCount === totalFiles ? 'вњ… All files uploaded!' : 'вљ пёЏ  Some files failed'}`
+  );
+
+  // РџСЂРѕРІРµСЂРєР° Р·Р°РіСЂСѓР¶РµРЅРЅС‹С… С„Р°Р№Р»РѕРІ
+  if (!options.dryRun && successCount > 0) {
+    console.log('\nрџ”Ќ Verifying uploads...');
+    try {
+      const envFlag = options.env === 'prod' ? '' : `--env ${options.env}`;
+      const listCommand = `wrangler r2 object list ${CONFIG.R2_BUCKET_NAME} ${envFlag}`;
+
+      if (options.verbose) {
+        console.log(`Command: ${listCommand}`);
+        execSync(listCommand, { stdio: 'inherit' });
+      } else {
+        const output = execSync(listCommand, { encoding: 'utf8' });
+        const uploadedCount =
+          output.split('\n').filter(line => line.trim()).length - 1;
+        console.log(`   вњ… Found ${uploadedCount} objects in R2 bucket`);
+      }
+    } catch (error) {
+      console.log(`   вљ пёЏ  Could not verify uploads: ${error.message}`);
+    }
+  }
+
+  process.exit(successCount === totalFiles ? 0 : 1);
 }
 
-uploadContentToR2();
+// РћР±СЂР°Р±РѕС‚РєР° РѕС€РёР±РѕРє
+process.on('unhandledRejection', error => {
+  console.error('вќЊ Unhandled error:', error);
+  process.exit(1);
+});
+
+// Р—Р°РїСѓСЃРє
+if (require.main === module) {
+  uploadContentToR2();
+}
+
+module.exports = { uploadContentToR2, COURSE_STRUCTURE };
 
 ```
 
@@ -24487,7 +25263,7 @@ Write-Host "РћРїРµСЂР°С†РёСЏ Р·Р°РІРµСЂС€РµРЅ�
 ## Summary
 
 - **Total Files**: 69
-- **Total Size**: 1.88 MB
+- **Total Size**: 1.91 MB
 - **Categories**: 8
-- **Generated**: 2025-07-05 18:35:48
+- **Generated**: 2025-07-08 09:46:50
 
