@@ -149,8 +149,10 @@ export const CORS_HEADERS = {
 ```bash
 # 1. Запустить dev сервер
 npm run dev
+# Обратите внимание на порт в выводе:
+# [wrangler:inf] Ready on http://localhost:XXXX
 
-# 2. Проверить основные эндпоинты
+# 2. Проверить основные эндпоинты (замените XXXX на актуальный порт)
 curl http://localhost:8787/test
 curl http://localhost:8787/api
 curl "http://localhost:8787/video/course1/test.mp4?token=demo123"
@@ -158,6 +160,9 @@ curl "http://localhost:8787/player/course1/lesson1?token=standard_test_token_202
 
 # 3. Проверить ошибки
 curl http://localhost:8787/video/course1/test.mp4  # Без токена - должна быть 401
+
+# 4. Если порт 8787 занят, wrangler выберет другой
+# Смотрите вывод: Ready on http://localhost:45941 (например)
 ```
 
 ### Тестирование на dev окружении
@@ -299,11 +304,70 @@ wrangler deployments list
 wrangler rollback --env production
 ```
 
+## External Documentation & Resources
+
+### Cloudflare Workers
+- **Official Docs**: https://developers.cloudflare.com/workers/
+- **Wrangler CLI**: https://developers.cloudflare.com/workers/wrangler/
+- **R2 Storage**: https://developers.cloudflare.com/r2/
+- **Workers Examples**: https://developers.cloudflare.com/workers/examples/
+- **KV Storage**: https://developers.cloudflare.com/kv/ (для будущего кеширования)
+- **Durable Objects**: https://developers.cloudflare.com/durable-objects/ (для real-time features)
+
+### SendPulse API
+- **API Documentation**: https://sendpulse.com/api
+- **Webhooks Guide**: https://sendpulse.com/knowledge-base/email-service/automation/webhooks
+- **API Console**: https://sendpulse.com/integrations/api/console
+- **Node.js SDK**: https://github.com/sendpulse/sendpulse-rest-api-node.js
+
+### Other Integrations
+- **Monobank API**: https://api.monobank.ua/docs/
+- **Zoho Mail**: https://www.zoho.com/mail/help/api/
+- **HeyGen AI** (для переводов): https://www.heygen.com/api-docs
+
+## Local Development Ports
+
+При запуске `npm run dev`, Wrangler может использовать разные порты:
+
+```bash
+# Основной API Worker
+http://localhost:8787       # Стандартный порт
+http://localhost:8788       # Альтернативный, если 8787 занят
+http://localhost:[random]   # Случайный порт (показывается в консоли)
+
+# Инспектор Wrangler (для отладки)
+http://localhost:9229       # Chrome DevTools inspector
+
+# Другие сервисы проекта (если запущены)
+http://localhost:3000       # SendPulse лендинг (если локально)
+http://localhost:5173       # Vite dev server (для будущего фронтенда)
+```
+
+### Проверка занятых портов
+```bash
+# Windows
+netstat -ano | findstr :8787
+
+# Linux/Mac
+lsof -i :8787
+
+# Убить процесс на порту (Linux/Mac)
+kill -9 $(lsof -t -i:8787)
+```
+
+## Useful Browser Extensions
+
+Для разработки и тестирования API:
+- **ModHeader**: Добавление custom headers (токены)
+- **JSON Viewer**: Форматирование JSON ответов
+- **CORS Unblock**: Тестирование CORS locally
+- **Postman**: Комплексное тестирование API
+
 ## Contact & Support
 
 - **Техническая поддержка**: Вячеслав (CTO)
 - **Контент и курсы**: Амира (PM)
-- **GitHub Issues**: Для багов и предложений
+- **GitHub Issues**: https://github.com/Shivalino/mastermarat-project/issues
 - **Срочные проблемы**: Создать issue с тегом `urgent`
 
 ---
