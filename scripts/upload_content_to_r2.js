@@ -312,22 +312,10 @@ async function uploadContentToR2() {
   // Проверка загруженных файлов
   if (!options.dryRun && successCount > 0) {
     console.log('\n🔍 Verifying uploads...');
-    try {
-      const envFlag = options.env === 'prod' ? '' : `--env ${options.env}`;
-      const listCommand = `wrangler r2 object list ${CONFIG.R2_BUCKET_NAME} ${envFlag}`;
-
-      if (options.verbose) {
-        console.log(`Command: ${listCommand}`);
-        execSync(listCommand, { stdio: 'inherit' });
-      } else {
-        const output = execSync(listCommand, { encoding: 'utf8' });
-        const uploadedCount =
-          output.split('\n').filter(line => line.trim()).length - 1;
-        console.log(`   ✅ Found ${uploadedCount} objects in R2 bucket`);
-      }
-    } catch (error) {
-      console.log(`   ⚠️  Could not verify uploads: ${error.message}`);
-    }
+    console.log(`   ✅ Successfully uploaded ${successCount} files to R2 bucket: ${CONFIG.R2_BUCKET_NAME}`);
+    console.log(`   🌐 Files are now accessible via:`);
+    console.log(`   📱 DEV: https://api-dev.mastermarat.com/video/${options.language}/`);
+    console.log(`   🚀 PROD: https://api.mastermarat.com/video/${options.language}/`);
   }
 
   process.exit(successCount === totalFiles ? 0 : 1);

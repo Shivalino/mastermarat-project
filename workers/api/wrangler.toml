@@ -1,6 +1,7 @@
 name = "mastermarat-api"
 main = "src/worker-new.js"
 compatibility_date = "2024-07-01"
+account_id = "e8bab6e02ccbd142064de2447bf5f550"
 
 # R2 bucket binding
 [[r2_buckets]]
