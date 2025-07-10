@@ -229,6 +229,213 @@ function Create-New {
     Start-Process notepad.exe $filePath
 }
 
+# Проверка наличия необходимых файлов для урока
+function Check-Content-Files {
+    param(
+        [string]$Language,
+        [string]$ContentType,
+        [string]$VideoFileName
+    )
+    
+    $results = @{
+        video = $false
+        thumbnail = $false
+        description = $false
+        videoPath = ""
+        thumbnailPath = ""
+        descriptionPath = ""
+    }
+    
+    $basePath = Join-Path $contentPath "$Language/$ContentType"
+    $thumbnailBasePath = Join-Path $tempUploadPath "thumbnails/$Language/$ContentType"
+    
+    # Проверяем видео файл
+    $videoPath = Join-Path $basePath "$VideoFileName.mp4"
+    if (Test-Path $videoPath) {
+        $results.video = $true
+        $results.videoPath = $videoPath
+    }
+    
+    # Проверяем thumbnail
+    $thumbnailPath = Join-Path $thumbnailBasePath "$VideoFileName.jpg"
+    if (Test-Path $thumbnailPath) {
+        $results.thumbnail = $true
+        $results.thumbnailPath = $thumbnailPath
+    }
+    
+    # Проверяем описание (.md файл)
+    $descriptionPath = Join-Path $basePath "$VideoFileName.md"
+    if (Test-Path $descriptionPath) {
+        $results.description = $true
+        $results.descriptionPath = $descriptionPath
+    }
+    
+    return $results
+}
+
+# Аплоад контента в R2
+function Upload-Content-To-R2 {
+    Write-Host "`n☁️  АПЛОАД КОНТЕНТА В R2" -ForegroundColor Cyan
+    
+    # Выбор языка
+    Write-Host "`nВыберите язык:" -ForegroundColor Yellow
+    for ($i = 0; $i -lt $supportedLanguages.Count; $i++) {
+        $langCode = $supportedLanguages[$i]
+        $langName = switch ($langCode) {
+            "ru" { "Русский" }
+            "ua" { "Украинский" }
+            "en" { "Английский" }
+        }
+        Write-Host "$($i+1). $langCode - $langName" -ForegroundColor White
+    }
+    
+    $langChoice = Read-Host "Номер языка (1-$($supportedLanguages.Count))"
+    $selectedLang = $supportedLanguages[[int]$langChoice - 1]
+    
+    # Выбор типа контента
+    Write-Host "`nВыберите тип контента:" -ForegroundColor Yellow
+    Write-Host "1. demo - Демо урок" -ForegroundColor White
+    Write-Host "2. course - Основной курс" -ForegroundColor White
+    
+    $contentType = Read-Host "Тип контента (1-2)"
+    
+    if ($contentType -eq "1") {
+        $contentFolder = "demo"
+        $courseDisplay = "Демо"
+    } else {
+        $courseNum = Read-Host "Номер курса (1-8)"
+        $contentFolder = "course$courseNum"
+        $courseDisplay = "Курс $courseNum"
+    }
+    
+    $targetFolder = Join-Path $contentPath "$selectedLang/$contentFolder"
+    
+    # Найти все видео файлы в папке
+    if (-not (Test-Path $targetFolder)) {
+        Write-Host "❌ Папка не найдена: $targetFolder" -ForegroundColor Red
+        return
+    }
+    
+    $videoFiles = Get-ChildItem -Path $targetFolder -Filter "*.mp4" -File
+    $mdFiles = Get-ChildItem -Path $targetFolder -Filter "*.md" -File
+    
+    if ($videoFiles.Count -eq 0 -and $mdFiles.Count -eq 0) {
+        Write-Host "❌ В папке нет видео файлов или описаний (.md)" -ForegroundColor Red
+        return
+    }
+    
+    Write-Host "`n📋 ПРОВЕРКА КОНТЕНТА" -ForegroundColor Cyan
+    Write-Host "Папка: $targetFolder" -ForegroundColor White
+    Write-Host "Язык: $selectedLang" -ForegroundColor White
+    Write-Host "Тип: $courseDisplay" -ForegroundColor White
+    
+    $allFiles = @()
+    $readyToUpload = 0
+    
+    # Проверяем каждый md файл
+    foreach ($mdFile in $mdFiles) {
+        $baseName = [System.IO.Path]::GetFileNameWithoutExtension($mdFile.Name)
+        if ($baseName -match '^video\d+$') {
+            $results = Check-Content-Files -Language $selectedLang -ContentType $contentFolder -VideoFileName $baseName
+            
+            Write-Host "`n📄 $baseName" -ForegroundColor Yellow
+            Write-Host "   Видео: $(if ($results.video) { '✅' } else { '❌' }) $($results.videoPath)" -ForegroundColor $(if ($results.video) { 'Green' } else { 'Red' })
+            Write-Host "   Превью: $(if ($results.thumbnail) { '✅' } else { '❌' }) $($results.thumbnailPath)" -ForegroundColor $(if ($results.thumbnail) { 'Green' } else { 'Red' })
+            Write-Host "   Описание: $(if ($results.description) { '✅' } else { '❌' }) $($results.descriptionPath)" -ForegroundColor $(if ($results.description) { 'Green' } else { 'Red' })
+            
+            $allFiles += @{
+                baseName = $baseName
+                results = $results
+                isReady = ($results.video -and $results.thumbnail -and $results.description)
+            }
+            
+            if ($results.video -and $results.thumbnail -and $results.description) {
+                $readyToUpload++
+            }
+        }
+    }
+    
+    if ($allFiles.Count -eq 0) {
+        Write-Host "`n❌ Не найдено файлов для аплоада" -ForegroundColor Red
+        return
+    }
+    
+    Write-Host "`n📊 СТАТИСТИКА:" -ForegroundColor Cyan
+    Write-Host "   Всего уроков: $($allFiles.Count)" -ForegroundColor White
+    Write-Host "   Готовы к аплоаду: $readyToUpload" -ForegroundColor $(if ($readyToUpload -gt 0) { 'Green' } else { 'Red' })
+    Write-Host "   Не готовы: $($allFiles.Count - $readyToUpload)" -ForegroundColor $(if (($allFiles.Count - $readyToUpload) -gt 0) { 'Yellow' } else { 'Green' })
+    
+    if ($readyToUpload -eq 0) {
+        Write-Host "`n❌ Нет готовых к аплоаду файлов" -ForegroundColor Red
+        return
+    }
+    
+    # Выбор режима
+    Write-Host "`nВыберите действие:" -ForegroundColor Yellow
+    Write-Host "1. Сухой прогон (показать что будет загружено)" -ForegroundColor White
+    Write-Host "2. Загрузить в DEV среду" -ForegroundColor White
+    Write-Host "3. Загрузить в PROD среду" -ForegroundColor White
+    Write-Host "0. Отмена" -ForegroundColor Red
+    
+    $uploadChoice = Read-Host "Ваш выбор"
+    
+    if ($uploadChoice -eq "0") {
+        Write-Host "Операция отменена" -ForegroundColor Yellow
+        return
+    }
+    
+    $isDryRun = ($uploadChoice -eq "1")
+    $environment = if ($uploadChoice -eq "3") { "prod" } else { "dev" }
+    
+    Write-Host "`n🚀 НАЧИНАЕМ АПЛОАД" -ForegroundColor Cyan
+    Write-Host "Режим: $(if ($isDryRun) { 'DRY RUN' } else { $environment.ToUpper() })" -ForegroundColor $(if ($isDryRun) { 'Yellow' } else { 'Green' })
+    
+    $uploadedCount = 0
+    
+    foreach ($fileSet in $allFiles) {
+        if ($fileSet.isReady) {
+            Write-Host "`n📤 Загружаем: $($fileSet.baseName)" -ForegroundColor Green
+            
+            # Подготавливаем пути в R2
+            $r2VideoPath = "content/$selectedLang/$contentFolder/$($fileSet.baseName).mp4"
+            $r2ThumbnailPath = "thumbnails/$selectedLang/$contentFolder/$($fileSet.baseName).jpg"
+            $r2DescriptionPath = "content/$selectedLang/$contentFolder/$($fileSet.baseName).md"
+            
+            if ($isDryRun) {
+                Write-Host "   [DRY RUN] Видео: $($fileSet.results.videoPath) → $r2VideoPath" -ForegroundColor Gray
+                Write-Host "   [DRY RUN] Превью: $($fileSet.results.thumbnailPath) → $r2ThumbnailPath" -ForegroundColor Gray
+                Write-Host "   [DRY RUN] Описание: $($fileSet.results.descriptionPath) → $r2DescriptionPath" -ForegroundColor Gray
+                $uploadedCount++
+            } else {
+                try {
+                    # Вызываем Node.js скрипт для аплоада
+                    $nodeCommand = "node scripts/upload_content_to_r2.js --env $environment --course $contentFolder --verbose"
+                    
+                    Write-Host "   Выполняем: $nodeCommand" -ForegroundColor Gray
+                    $result = Start-Process -FilePath "node" -ArgumentList "scripts/upload_content_to_r2.js", "--env", $environment, "--course", $contentFolder, "--verbose" -WorkingDirectory $projectRoot -Wait -PassThru -NoNewWindow
+                    
+                    if ($result.ExitCode -eq 0) {
+                        Write-Host "   ✅ Успешно загружено: $($fileSet.baseName)" -ForegroundColor Green
+                        $uploadedCount++
+                    } else {
+                        Write-Host "   ❌ Ошибка загрузки: $($fileSet.baseName)" -ForegroundColor Red
+                    }
+                } catch {
+                    Write-Host "   ❌ Ошибка: $($_.Exception.Message)" -ForegroundColor Red
+                }
+            }
+        }
+    }
+    
+    Write-Host "`n✅ АПЛОАД ЗАВЕРШЕН" -ForegroundColor Green
+    Write-Host "   Обработано: $uploadedCount из $readyToUpload готовых файлов" -ForegroundColor White
+    
+    if (-not $isDryRun -and $uploadedCount -gt 0) {
+        Write-Host "`n🔗 Проверить загруженные файлы:" -ForegroundColor Cyan
+        Write-Host "   https://api.mastermarat.com/video/$selectedLang/$contentFolder/" -ForegroundColor Blue
+    }
+}
+
 # Создание нового видео урока с выбором языка и курса
 function Create-Video-Lesson {
     Write-Host "`n🎬 СОЗДАНИЕ НОВОГО ВИДЕО УРОКА" -ForegroundColor Cyan
@@ -336,8 +543,9 @@ function Main-Menu {
         Write-Host ""
         Write-Host "1. Создать новый урок (текстовый)" -ForegroundColor Yellow
         Write-Host "2. Создать видео урок (многоязычный)" -ForegroundColor Green
-        Write-Host "3. Конвертировать файл" -ForegroundColor Yellow
-        Write-Host "4. Открыть папку" -ForegroundColor Yellow
+        Write-Host "3. Аплоад контента в R2" -ForegroundColor Magenta
+        Write-Host "4. Конвертировать файл" -ForegroundColor Yellow
+        Write-Host "5. Открыть папку" -ForegroundColor Yellow
         Write-Host "0. Выход" -ForegroundColor Red
         Write-Host ""
         Write-Host "Поддерживаемые языки: $($supportedLanguages -join ', ')" -ForegroundColor Cyan
@@ -348,12 +556,13 @@ function Main-Menu {
         switch ($choice) {
             "1" { Create-New }
             "2" { Create-Video-Lesson }
-            "3" { Convert-File }
-            "4" { Start-Process explorer.exe $tempUploadPath }
+            "3" { Upload-Content-To-R2 }
+            "4" { Convert-File }
+            "5" { Start-Process explorer.exe $tempUploadPath }
             "0" { return }
         }
         
-        if ($choice -ne "4" -and $choice -ne "0") {
+        if ($choice -ne "5" -and $choice -ne "0") {
             Read-Host "`nEnter для продолжения"
         }
     }
