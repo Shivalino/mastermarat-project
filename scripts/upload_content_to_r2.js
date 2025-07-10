@@ -159,14 +159,28 @@ async function uploadFileToR2(localPath, r2Path, options) {
   }
 
   try {
-    const envFlag = env === 'prod' ? '' : `--env ${env}`;
-    const command = `wrangler r2 object put "${CONFIG.R2_BUCKET_NAME}/${r2Path}" --file="${localPath.replace(/\\/g, '/')}" ${envFlag}`;
+    // Определяем content-type на основе расширения файла
+    const ext = path.extname(localPath).toLowerCase();
+    const contentType = {
+      '.mp4': 'video/mp4',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.md': 'text/markdown',
+      '.json': 'application/json'
+    }[ext] || 'application/octet-stream';
+
+    // Без --env флага, как в рабочем скрипте
+    const command = `wrangler r2 object put "${CONFIG.R2_BUCKET_NAME}/${r2Path}" --file="${localPath.replace(/\\/g, '/')}" --content-type="${contentType}"`;
 
     if (verbose) {
       console.log(`   Command: ${command}`);
     }
 
-    execSync(command, { stdio: verbose ? 'inherit' : 'pipe' });
+    // Выполняем команду из корневой папки (без wrangler.toml конфигурации)
+    execSync(command, { 
+      stdio: verbose ? 'inherit' : 'pipe'
+    });
     console.log(`   ✅ Success: ${r2Path}`);
     return true;
   } catch (error) {
