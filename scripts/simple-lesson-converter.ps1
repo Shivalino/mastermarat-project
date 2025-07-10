@@ -409,10 +409,10 @@ function Upload-Content-To-R2 {
             } else {
                 try {
                     # Вызываем Node.js скрипт для аплоада
-                    $nodeCommand = "node scripts/upload_content_to_r2.js --env $environment --course $contentFolder --verbose"
+                    $nodeCommand = "node scripts/upload_content_to_r2.js --env $environment --course $contentFolder --language $selectedLang --verbose"
                     
                     Write-Host "   Выполняем: $nodeCommand" -ForegroundColor Gray
-                    $result = Start-Process -FilePath "node" -ArgumentList "scripts/upload_content_to_r2.js", "--env", $environment, "--course", $contentFolder, "--verbose" -WorkingDirectory $projectRoot -Wait -PassThru -NoNewWindow
+                    $result = Start-Process -FilePath "node" -ArgumentList "scripts/upload_content_to_r2.js", "--env", $environment, "--course", $contentFolder, "--language", $selectedLang, "--verbose" -WorkingDirectory $projectRoot -Wait -PassThru -NoNewWindow
                     
                     if ($result.ExitCode -eq 0) {
                         Write-Host "   ✅ Успешно загружено: $($fileSet.baseName)" -ForegroundColor Green

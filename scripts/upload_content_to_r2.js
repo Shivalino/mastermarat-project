@@ -13,46 +13,49 @@ const path = require('path');
 // Конфигурация
 const CONFIG = {
   R2_BUCKET_NAME: 'mastermarat-videos',
-  BASE_UPLOAD_DIR: path.join(__dirname, '..', 'temp_upload', 'content'),
-  SUPPORTED_FILE_TYPES: ['.json', '.mp4', '.jpg', '.jpeg', '.png'],
+  BASE_UPLOAD_DIR: path.join(__dirname, '..', 'temp_upload'),
+  SUPPORTED_FILE_TYPES: ['.json', '.mp4', '.jpg', '.jpeg', '.png', '.md'],
+  SUPPORTED_LANGUAGES: ['ru', 'ua', 'en'],
   MAX_PARALLEL_UPLOADS: 3
 };
 
-// Структура курсов - обновляется вручную при добавлении новых уроков
+// Структура курсов - новая многоязычная структура
 const COURSE_STRUCTURE = {
-  course01: {
-    name: 'Механика здоровья',
-    lessons: [
-      'lesson001' // Пока только один урок загружен
-    ]
+  demo: {
+    name: 'Демо уроки',
+    languages: ['ru', 'ua', 'en']
   },
-  course02: {
+  course1: {
+    name: 'Курс 1: Механика здоровья',
+    languages: ['ru', 'ua', 'en']
+  },
+  course2: {
     name: 'Курс 2',
-    lessons: [] // Пока пусто
+    languages: ['ru', 'ua', 'en']
   },
-  course03: {
+  course3: {
     name: 'Курс 3',
-    lessons: []
+    languages: ['ru', 'ua', 'en']
   },
-  course04: {
+  course4: {
     name: 'Курс 4',
-    lessons: []
+    languages: ['ru', 'ua', 'en']
   },
-  course05: {
+  course5: {
     name: 'Курс 5',
-    lessons: []
+    languages: ['ru', 'ua', 'en']
   },
-  course06: {
+  course6: {
     name: 'Курс 6',
-    lessons: []
+    languages: ['ru', 'ua', 'en']
   },
-  course07: {
+  course7: {
     name: 'Курс 7',
-    lessons: []
+    languages: ['ru', 'ua', 'en']
   },
-  course08: {
+  course8: {
     name: 'Курс 8',
-    lessons: []
+    languages: ['ru', 'ua', 'en']
   }
 };
 
@@ -62,6 +65,7 @@ function parseArgs() {
   const options = {
     env: 'dev',
     course: null,
+    language: 'ru',
     dryRun: false,
     verbose: false
   };
@@ -73,6 +77,10 @@ function parseArgs() {
         break;
       case '--course':
         options.course = args[++i];
+        break;
+      case '--language':
+      case '--lang':
+        options.language = args[++i] || 'ru';
         break;
       case '--dry-run':
         options.dryRun = true;
@@ -92,21 +100,25 @@ function parseArgs() {
 // Показать справку
 function showHelp() {
   console.log(`
-📤 Upload Content to R2 - MasterMarat Project
+📤 Upload Content to R2 - MasterMarat Project (Multilingual)
 
 Usage: node scripts/upload_content_to_r2.js [options]
 
 Options:
-  --env <env>      Environment (dev|prod), default: dev
-  --course <id>    Upload specific course only
-  --dry-run        Show what would be uploaded without uploading
-  --verbose        Show detailed output
-  --help           Show this help
+  --env <env>        Environment (dev|prod), default: dev
+  --course <id>      Upload specific course (demo|course1|course2|...)
+  --language <lang>  Language to upload (ru|ua|en), default: ru
+  --dry-run          Show what would be uploaded without uploading
+  --verbose          Show detailed output
+  --help             Show this help
 
 Examples:
-  node scripts/upload_content_to_r2.js --env dev
+  node scripts/upload_content_to_r2.js --env dev --course demo --language ru
   node scripts/upload_content_to_r2.js --course course1 --dry-run
-  node scripts/upload_content_to_r2.js --env prod --verbose
+  node scripts/upload_content_to_r2.js --env prod --verbose --language ru
+  
+Available courses: ${Object.keys(COURSE_STRUCTURE).join(', ')}
+Available languages: ${CONFIG.SUPPORTED_LANGUAGES.join(', ')}
   `);
 }
 
@@ -163,49 +175,51 @@ async function uploadFileToR2(localPath, r2Path, options) {
   }
 }
 
-// Найти все файлы для загрузки
-function findFilesToUpload(courseId, lessonId) {
+// Найти все файлы для загрузки в новой многоязычной структуре
+function findFilesToUpload(courseId, language) {
   const files = [];
-  const courseDir = path.join(CONFIG.BASE_UPLOAD_DIR, courseId);
+  const contentDir = path.join(CONFIG.BASE_UPLOAD_DIR, 'content', language, courseId);
+  const thumbnailDir = path.join(CONFIG.BASE_UPLOAD_DIR, 'thumbnails', language, courseId);
 
-  // JSON файл урока (lesson001.json)
-  const jsonFile = path.join(courseDir, `${lessonId}.json`);
-  if (fileExists(jsonFile)) {
-    files.push({
-      local: jsonFile,
-      r2: `content/${courseId}/${lessonId}.json`,
-      type: 'metadata'
-    });
+  if (!fileExists(contentDir)) {
+    return files;
   }
 
-  // Видео файл (lesson001.mp4)
-  const videoFile = path.join(courseDir, `${lessonId}.mp4`);
-  if (fileExists(videoFile)) {
-    files.push({
-      local: videoFile,
-      r2: `videos/${courseId}/${lessonId}.mp4`,
-      type: 'video'
-    });
-  }
+  // Найти все .md файлы в папке курса
+  const mdFiles = fs.readdirSync(contentDir)
+    .filter(file => file.endsWith('.md') && file.match(/^video\d+\.md$/))
+    .map(file => path.basename(file, '.md'));
 
-  // Thumbnail (lesson001.jpg)
-  const thumbFile = path.join(courseDir, `${lessonId}.jpg`);
-  if (fileExists(thumbFile)) {
-    files.push({
-      local: thumbFile,
-      r2: `thumbnails/${courseId}/${lessonId}.jpg`,
-      type: 'thumbnail'
-    });
-  }
+  for (const videoId of mdFiles) {
+    // Описание урока (.md файл)
+    const mdFile = path.join(contentDir, `${videoId}.md`);
+    if (fileExists(mdFile)) {
+      files.push({
+        local: mdFile,
+        r2: `content/${language}/${courseId}/${videoId}.md`,
+        type: 'description'
+      });
+    }
 
-  // Альтернативный thumbnail с _thumb
-  const thumbAltFile = path.join(courseDir, `${lessonId}_thumb.jpg`);
-  if (!fileExists(thumbFile) && fileExists(thumbAltFile)) {
-    files.push({
-      local: thumbAltFile,
-      r2: `thumbnails/${courseId}/${lessonId}.jpg`,
-      type: 'thumbnail'
-    });
+    // Видео файл (.mp4)
+    const videoFile = path.join(contentDir, `${videoId}.mp4`);
+    if (fileExists(videoFile)) {
+      files.push({
+        local: videoFile,
+        r2: `content/${language}/${courseId}/${videoId}.mp4`,
+        type: 'video'
+      });
+    }
+
+    // Thumbnail (.jpg)
+    const thumbFile = path.join(thumbnailDir, `${videoId}.jpg`);
+    if (fileExists(thumbFile)) {
+      files.push({
+        local: thumbFile,
+        r2: `thumbnails/${language}/${courseId}/${videoId}.jpg`,
+        type: 'thumbnail'
+      });
+    }
   }
 
   return files;
@@ -215,12 +229,20 @@ function findFilesToUpload(courseId, lessonId) {
 async function uploadContentToR2() {
   const options = parseArgs();
 
-  console.log('🚀 MasterMarat R2 Content Uploader');
-  console.log('==================================');
+  console.log('🚀 MasterMarat R2 Content Uploader (Multilingual)');
+  console.log('================================================');
   console.log(`Environment: ${options.env}`);
+  console.log(`Language: ${options.language}`);
   console.log(`Bucket: ${CONFIG.R2_BUCKET_NAME}`);
   console.log(`Mode: ${options.dryRun ? 'DRY RUN' : 'LIVE'}`);
   console.log('');
+
+  // Проверка языка
+  if (!CONFIG.SUPPORTED_LANGUAGES.includes(options.language)) {
+    console.error(`❌ Language "${options.language}" not supported!`);
+    console.log(`Available languages: ${CONFIG.SUPPORTED_LANGUAGES.join(', ')}`);
+    process.exit(1);
+  }
 
   // Определяем какие курсы загружать
   const coursesToUpload = options.course
@@ -242,19 +264,31 @@ async function uploadContentToR2() {
   // Загружаем по курсам
   for (const [courseId, courseData] of Object.entries(coursesToUpload)) {
     console.log(`\n📚 Course: ${courseId} - ${courseData.name}`);
+    console.log(`🌐 Language: ${options.language}`);
     console.log('─'.repeat(50));
 
-    for (const lessonId of courseData.lessons) {
-      console.log(`\n📖 Lesson: ${lessonId}`);
+    const files = findFilesToUpload(courseId, options.language);
 
-      const files = findFilesToUpload(courseId, lessonId);
+    if (files.length === 0) {
+      console.log(`   ⚠️  No files found for this course in ${options.language}`);
+      continue;
+    }
 
-      if (files.length === 0) {
-        console.log(`   ⚠️  No files found for this lesson`);
-        continue;
+    // Группируем файлы по видео урокам
+    const videoGroups = {};
+    files.forEach(file => {
+      const videoId = path.basename(file.r2).split('.')[0];
+      if (!videoGroups[videoId]) {
+        videoGroups[videoId] = [];
       }
+      videoGroups[videoId].push(file);
+    });
 
-      for (const file of files) {
+    for (const [videoId, videoFiles] of Object.entries(videoGroups)) {
+      console.log(`\n📖 Video: ${videoId}`);
+      
+      for (const file of videoFiles) {
+        console.log(`   📄 ${file.type}: ${file.local}`);
         totalFiles++;
         const success = await uploadFileToR2(file.local, file.r2, options);
         if (success) successCount++;
@@ -266,6 +300,7 @@ async function uploadContentToR2() {
   const duration = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log('\n' + '='.repeat(50));
   console.log('📊 Upload Summary:');
+  console.log(`   Language: ${options.language}`);
   console.log(`   Total files: ${totalFiles}`);
   console.log(`   Successful: ${successCount}`);
   console.log(`   Failed: ${totalFiles - successCount}`);
