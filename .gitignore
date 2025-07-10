@@ -48,9 +48,12 @@ coverage/
 *.backup
 *.old
 tmp/
+
+# temp_upload - allow only documentation files
 temp_upload/
 !temp_upload/**/*.md
 !temp_upload/**/*.txt
+!temp_upload/**/*.sh
 
 # Logs
 logs/
