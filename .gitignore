@@ -49,6 +49,8 @@ coverage/
 *.old
 tmp/
 temp_upload/
+!temp_upload/**/*.md
+!temp_upload/**/*.txt
 
 # Logs
 logs/
